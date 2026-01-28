@@ -1,0 +1,34 @@
+# Core
+pandas>=2.0.0
+numpy>=1.24.0
+scipy>=1.10.0
+
+# Korea Investment API (REST API - works on all platforms)
+requests>=2.31.0
+websocket-client>=1.6.0  # WebSocket 실시간 시세
+
+# Alternative Data Sources
+finance-datareader>=0.9.50
+pykrx>=1.0.0
+opendartreader>=0.2.0
+
+# Database
+sqlalchemy>=2.0.0
+
+# Web Dashboard
+streamlit>=1.28.0
+plotly>=5.18.0
+
+# Utilities
+python-dateutil>=2.8.0
+tqdm>=4.65.0
+PyYAML>=6.0.0
+python-dotenv>=1.0.0
+Pillow>=10.0.0
+
+# Testing (dev only - can be removed for deployment)
+# pytest>=7.4.0
+# pytest-cov>=4.1.0
+
+# Type hints
+typing-extensions>=4.8.0

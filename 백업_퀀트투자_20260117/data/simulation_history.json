@@ -1,0 +1,23 @@
+[
+  {
+    "id": "24c10a97",
+    "stock": {
+      "code": "356890",
+      "name": "싸이버원",
+      "buy_price": 3925,
+      "quantity": 10,
+      "total_amount": 39250,
+      "current_price": 3925.0,
+      "target_price": 4121,
+      "stop_loss": 3728,
+      "strategy_memo": ""
+    },
+    "holding_days": 3,
+    "start_date": "2026-01-16T22:45:37.622073",
+    "end_date": "2026-01-19T22:45:37.622073",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  }
+]

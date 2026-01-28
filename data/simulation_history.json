@@ -1,0 +1,302 @@
+[
+  {
+    "id": "0d1a9edd",
+    "stock": {
+      "code": "064400",
+      "name": "LG씨엔에스",
+      "buy_price": 69800,
+      "quantity": 1000,
+      "total_amount": 69800000,
+      "current_price": 69800.0,
+      "target_price": 73290,
+      "stop_loss": 66310,
+      "strategy_memo": "",
+      "current_price_now": 73700.0
+    },
+    "holding_days": 3,
+    "start_date": "2026-01-20T17:20:44.585056",
+    "end_date": "2026-01-23T17:20:44.585056",
+    "status": "completed",
+    "result_return": 5.587392550143266,
+    "result_profit": 3900000.0,
+    "exit_price": 73700.0
+  },
+  {
+    "id": "06dd12e7",
+    "stock": {
+      "code": "263750",
+      "name": "펄어비스",
+      "buy_price": 42800,
+      "quantity": 1000,
+      "total_amount": 42800000,
+      "current_price": 42900.0,
+      "target_price": 45045,
+      "stop_loss": 40755,
+      "strategy_memo": "",
+      "current_price_now": 55100.0
+    },
+    "holding_days": 30,
+    "start_date": "2026-01-22T13:33:57.512726",
+    "end_date": "2026-02-21T13:33:57.512726",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "9b045ba4",
+    "stock": {
+      "code": "148780",
+      "name": "비큐AI",
+      "buy_price": 1545.0,
+      "quantity": 20000,
+      "total_amount": 30900000.0,
+      "current_price": 1575.0,
+      "target_price": 1655,
+      "stop_loss": 1498,
+      "strategy_memo": "",
+      "current_price_now": 1641.0
+    },
+    "holding_days": 10,
+    "start_date": "2026-01-22T13:45:40.188271",
+    "end_date": "2026-02-01T13:45:40.188271",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null,
+    "add_buys": [
+      {
+        "date": "2026-01-24T10:28:11.703496",
+        "price": 1513,
+        "quantity": 10000,
+        "total": 15130000
+      }
+    ]
+  },
+  {
+    "id": "ce948dc4",
+    "stock": {
+      "code": "027410",
+      "name": "BGF",
+      "buy_price": 3960,
+      "quantity": 1000,
+      "total_amount": 3960000,
+      "current_price": 3960.0,
+      "target_price": 4158,
+      "stop_loss": 3762,
+      "strategy_type": "120일선 돌파",
+      "strategy_memo": "120일선 지지 ",
+      "current_price_now": 3995.0
+    },
+    "holding_days": 10,
+    "start_date": "2026-01-24T10:11:52.192745",
+    "end_date": "2026-02-03T10:11:52.192745",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "4d23aafd",
+    "stock": {
+      "code": "389020",
+      "name": "자람테크놀로지",
+      "buy_price": 38300,
+      "quantity": 100,
+      "total_amount": 3830000,
+      "current_price": 38300.0,
+      "target_price": 40215,
+      "stop_loss": 36385,
+      "strategy_type": "선택 안함",
+      "strategy_memo": "바닥 반등 ",
+      "current_price_now": 41600.0
+    },
+    "holding_days": 7,
+    "start_date": "2026-01-25T23:09:47.911314",
+    "end_date": "2026-02-01T23:09:47.911314",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "95326c06",
+    "stock": {
+      "code": "095660",
+      "name": "네오위즈",
+      "buy_price": 29950,
+      "quantity": 200,
+      "total_amount": 5990000,
+      "current_price": 29950.0,
+      "target_price": 31447,
+      "stop_loss": 28452,
+      "strategy_type": "선택 안함",
+      "strategy_memo": "헤드엔솔더 통과 및 52주 신고가 정배열",
+      "current_price_now": 29700.0
+    },
+    "holding_days": 7,
+    "start_date": "2026-01-27T23:05:32.444302",
+    "end_date": "2026-02-03T23:05:32.444302",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "2cdda23b",
+    "stock": {
+      "code": "011500",
+      "name": "한농화성",
+      "buy_price": 24600,
+      "quantity": 100,
+      "total_amount": 2460000,
+      "current_price": 24600.0,
+      "target_price": 25830,
+      "stop_loss": 23370,
+      "strategy_type": "선택 안함",
+      "strategy_memo": "신고가 이후 눌림 ",
+      "current_price_now": 25350.0
+    },
+    "holding_days": 3,
+    "start_date": "2026-01-27T23:14:50.178885",
+    "end_date": "2026-01-30T23:14:50.178885",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "a5643327",
+    "stock": {
+      "code": "282330",
+      "name": "BGF리테일",
+      "buy_price": 117000,
+      "quantity": 100,
+      "total_amount": 11700000,
+      "current_price": 117000.0,
+      "target_price": 122850,
+      "stop_loss": 111150,
+      "strategy_type": "선택 안함",
+      "strategy_memo": "스윙매매 바닥 및 헤드앤솔드 통과 ",
+      "current_price_now": 116900.0
+    },
+    "holding_days": 3,
+    "start_date": "2026-01-27T23:25:06.375569",
+    "end_date": "2026-01-30T23:25:06.375569",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "dec029f0",
+    "stock": {
+      "code": "293490",
+      "name": "카카오게임즈",
+      "buy_price": 16320,
+      "quantity": 200,
+      "total_amount": 3264000,
+      "current_price": 16320.0,
+      "target_price": 17136,
+      "stop_loss": 15504,
+      "strategy_type": "선택 안함",
+      "strategy_memo": "넥라인 돌파 예상 (스윙주추천)",
+      "current_price_now": 17200.0
+    },
+    "holding_days": 3,
+    "start_date": "2026-01-27T23:28:17.559699",
+    "end_date": "2026-01-30T23:28:17.559699",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "fc4013dc",
+    "stock": {
+      "code": "000100",
+      "name": "유한양행",
+      "buy_price": 109700,
+      "quantity": 50,
+      "total_amount": 5485000,
+      "current_price": 109700.0,
+      "target_price": 115185,
+      "stop_loss": 104215,
+      "strategy_type": "선택 안함",
+      "strategy_memo": "저점 반등 및 이동평균선 정배열 "
+    },
+    "holding_days": 10,
+    "start_date": "2026-01-28T20:17:11.560508",
+    "end_date": "2026-02-07T20:17:11.560508",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "0d7ab37d",
+    "stock": {
+      "code": "054050",
+      "name": "농우바이오",
+      "buy_price": 8350,
+      "quantity": 500,
+      "total_amount": 4175000,
+      "current_price": 8350.0,
+      "target_price": 8767,
+      "stop_loss": 7932,
+      "strategy_type": "선택 안함",
+      "strategy_memo": "이평선 정배열 진행중 바닥 이후 상승 "
+    },
+    "holding_days": 7,
+    "start_date": "2026-01-28T21:03:40.353514",
+    "end_date": "2026-02-04T21:03:40.353514",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "15b6706d",
+    "stock": {
+      "code": "108320",
+      "name": "LX세미콘",
+      "buy_price": 54700,
+      "quantity": 100,
+      "total_amount": 5470000,
+      "current_price": 54700.0,
+      "target_price": 57435,
+      "stop_loss": 51965,
+      "strategy_type": "선택 안함",
+      "strategy_memo": ""
+    },
+    "holding_days": 10,
+    "start_date": "2026-01-28T21:23:45.947858",
+    "end_date": "2026-02-07T21:23:45.947858",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "1a520d87",
+    "stock": {
+      "code": "105560",
+      "name": "KB금융",
+      "buy_price": 54700,
+      "quantity": 100,
+      "total_amount": 5470000,
+      "current_price": 137900.0,
+      "target_price": 57435,
+      "stop_loss": 51965,
+      "strategy_type": "선택 안함",
+      "strategy_memo": ""
+    },
+    "holding_days": 10,
+    "start_date": "2026-01-28T21:24:11.395842",
+    "end_date": "2026-02-07T21:24:11.395842",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  }
+]
