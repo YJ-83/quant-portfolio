@@ -253,6 +253,9 @@ class GeminiAnalyzer:
         news_sentiment: Dict
     ) -> Dict:
         """종합 매매 추천 생성"""
+        # 디버깅: 함수 진입 마커
+        self.last_error = "ENTERED_GET_RECOMMENDATION"
+        print(f"[Gemini] get_stock_recommendation 진입 - is_available: {self.is_available()}")
 
         # 캐시 완전 비활성화 - 매번 API 호출 강제 (디버깅용)
         # 캐시 키 생성만 하고, 저장/조회는 하지 않음
@@ -262,6 +265,7 @@ class GeminiAnalyzer:
             del _ANALYSIS_CACHE[cache_key]
 
         if not self.is_available():
+            self.last_error = "NOT_AVAILABLE_IN_RECOMMENDATION"
             return self._fallback_recommendation(technical_signals, news_sentiment)
 
         # 기술적 신호 요약
