@@ -3,7 +3,7 @@ AI 추천 및 뉴스 분석 페이지
 Gemini API 기반 주식 분석 + 뉴스 감성 분석
 """
 # 코드 버전 마커 (배포 확인용)
-_CODE_VERSION = "v2.1-debug-20260201"
+_CODE_VERSION = "v2.2-debug-20260201"
 
 import streamlit as st
 import pandas as pd
@@ -315,8 +315,8 @@ def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler
                     news_sentiment = {'overall_sentiment': 'neutral', 'positive_ratio': 0, 'negative_ratio': 0}
 
                 # 3. AI 추천 생성
-                # API 호출 전 last_error 초기화
-                analyzer.last_error = None
+                # API 호출 전 last_error에 마커 설정 (호출 추적용)
+                analyzer.last_error = "BEFORE_API_CALL"
 
                 recommendation = analyzer.get_stock_recommendation(
                     stock_name=stock_name,
