@@ -3529,17 +3529,32 @@ def _render_comprehensive_recommendation_section(api):
     stock_map = {f"{name} ({code})": (code, name) for code, name in all_stocks}
 
     # selectbox로 자동완성 검색 (Streamlit의 selectbox는 검색 기능 내장)
-    col1, col2 = st.columns([3, 1])
-    with col1:
+    # 모바일 모드 확인
+    is_mobile = st.session_state.get('mobile_mode', False)
+
+    if is_mobile:
+        # 모바일: 전체 너비 사용
         selected_stock = st.selectbox(
-            "종목 선택 (검색어 입력 시 자동완성)",
+            "종목 선택",
             options=stock_options,
             index=0,
             key="single_stock_selectbox",
             help="종목명 또는 코드 일부를 입력하면 자동완성됩니다"
         )
-    with col2:
-        search_btn = st.button("📊 점수 조회", key="single_stock_btn", type="primary")
+        search_btn = st.button("📊 점수 조회", key="single_stock_btn", type="primary", use_container_width=True)
+    else:
+        # 데스크톱: 기존 레이아웃
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            selected_stock = st.selectbox(
+                "종목 선택 (검색어 입력 시 자동완성)",
+                options=stock_options,
+                index=0,
+                key="single_stock_selectbox",
+                help="종목명 또는 코드 일부를 입력하면 자동완성됩니다"
+            )
+        with col2:
+            search_btn = st.button("📊 점수 조회", key="single_stock_btn", type="primary")
 
     # 검색 실행 - 종목이 선택되고 버튼 클릭 시
     if search_btn and selected_stock and selected_stock in stock_map:
@@ -4410,44 +4425,88 @@ def _analyze_single_stock(api, stock_code: str):
     change_color = "#FF3B30" if change_rate > 0 else "#007AFF" if change_rate < 0 else "#888"
     sign = "+" if change_rate > 0 else ""
 
-    # 결과 표시
-    st.markdown(f"""
-    <div style='background: linear-gradient(135deg, {grade_color}22 0%, {grade_color}11 100%);
-                padding: 1.5rem; border-radius: 15px; border: 2px solid {grade_color}; margin: 1rem 0;'>
-        <div style='display: flex; justify-content: space-between; align-items: center;'>
-            <div>
-                <h2 style='margin: 0; color: #333;'>{name} ({code})</h2>
-                <p style='margin: 0.5rem 0; color: {change_color}; font-size: 1.3rem; font-weight: bold;'>
-                    현재가: {current:,.0f}원 ({sign}{change_rate:.2f}%)
-                </p>
+    # 모바일 모드 확인
+    is_mobile = st.session_state.get('mobile_mode', False)
+
+    # 결과 표시 - 모바일/데스크톱 분기
+    if is_mobile:
+        # 모바일: 세로 배치, 작은 폰트
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, {grade_color}22 0%, {grade_color}11 100%);
+                    padding: 1rem; border-radius: 12px; border: 2px solid {grade_color}; margin: 0.5rem 0;'>
+            <div style='display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap;'>
+                <div style='flex: 1; min-width: 150px;'>
+                    <h3 style='margin: 0; color: #333; font-size: 1.1rem;'>{name}</h3>
+                    <p style='margin: 0.2rem 0; color: #666; font-size: 0.85rem;'>{code}</p>
+                    <p style='margin: 0.3rem 0; color: {change_color}; font-size: 1rem; font-weight: bold;'>
+                        {current:,.0f}원 ({sign}{change_rate:.2f}%)
+                    </p>
+                </div>
+                <div style='text-align: center; background: {grade_color}; padding: 0.5rem 1rem; border-radius: 8px;'>
+                    <div style='color: white; font-size: 1.8rem; font-weight: bold;'>{grade}</div>
+                    <div style='color: white; font-size: 1rem;'>{total_score}점</div>
+                </div>
             </div>
-            <div style='text-align: center; background: {grade_color}; padding: 1rem 2rem; border-radius: 10px;'>
-                <h1 style='margin: 0; color: white; font-size: 2.5rem;'>{grade}</h1>
-                <p style='margin: 0; color: white; font-size: 1.5rem;'>{total_score}점</p>
-            </div>
+            <p style='margin-top: 0.5rem; color: #666; font-size: 0.9rem;'>📊 {grade_desc}</p>
         </div>
-        <p style='margin-top: 1rem; color: #666; font-size: 1.1rem;'>📊 {grade_desc}</p>
-    </div>
-    """, unsafe_allow_html=True)
+        """, unsafe_allow_html=True)
+    else:
+        # 데스크톱: 기존 레이아웃
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, {grade_color}22 0%, {grade_color}11 100%);
+                    padding: 1.5rem; border-radius: 15px; border: 2px solid {grade_color}; margin: 1rem 0;'>
+            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                <div>
+                    <h2 style='margin: 0; color: #333;'>{name} ({code})</h2>
+                    <p style='margin: 0.5rem 0; color: {change_color}; font-size: 1.3rem; font-weight: bold;'>
+                        현재가: {current:,.0f}원 ({sign}{change_rate:.2f}%)
+                    </p>
+                </div>
+                <div style='text-align: center; background: {grade_color}; padding: 1rem 2rem; border-radius: 10px;'>
+                    <h1 style='margin: 0; color: white; font-size: 2.5rem;'>{grade}</h1>
+                    <p style='margin: 0; color: white; font-size: 1.5rem;'>{total_score}점</p>
+                </div>
+            </div>
+            <p style='margin-top: 1rem; color: #666; font-size: 1.1rem;'>📊 {grade_desc}</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     # 투자자 매매동향 표시
     render_investor_trend(api, code, name, days=5, key_prefix=f"inv_{code}")
 
     # 신호 상세 분석
     st.markdown("#### 📋 전략별 분석 결과")
-    col1, col2 = st.columns(2)
+    is_mobile = st.session_state.get('mobile_mode', False)
 
-    for i, (strategy_name, signal_text, score) in enumerate(signal_details):
-        col = col1 if i % 2 == 0 else col2
-        with col:
+    if is_mobile:
+        # 모바일: 1열로 표시
+        for strategy_name, signal_text, score in signal_details:
             if score > 0:
                 st.markdown(f"""
-                <div style='background: #e8f5e9; padding: 0.8rem; border-radius: 8px; margin: 0.3rem 0; border-left: 4px solid #4CAF50;'>
+                <div style='background: #e8f5e9; padding: 0.5rem 0.8rem; border-radius: 8px; margin: 0.2rem 0; border-left: 4px solid #4CAF50; font-size: 0.9rem;'>
                     <b>{strategy_name}</b>: {signal_text} <span style='color: #4CAF50; float: right;'>+{score}점</span>
                 </div>
                 """, unsafe_allow_html=True)
             else:
                 st.markdown(f"""
+                <div style='background: #f5f5f5; padding: 0.5rem 0.8rem; border-radius: 8px; margin: 0.2rem 0; border-left: 4px solid #999; font-size: 0.9rem;'>
+                    <b>{strategy_name}</b>: {signal_text} <span style='color: #999; float: right;'>0점</span>
+                </div>
+                """, unsafe_allow_html=True)
+    else:
+        # 데스크톱: 2열로 표시
+        col1, col2 = st.columns(2)
+        for i, (strategy_name, signal_text, score) in enumerate(signal_details):
+            col = col1 if i % 2 == 0 else col2
+            with col:
+                if score > 0:
+                    st.markdown(f"""
+                    <div style='background: #e8f5e9; padding: 0.8rem; border-radius: 8px; margin: 0.3rem 0; border-left: 4px solid #4CAF50;'>
+                        <b>{strategy_name}</b>: {signal_text} <span style='color: #4CAF50; float: right;'>+{score}점</span>
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
                 <div style='background: #f5f5f5; padding: 0.8rem; border-radius: 8px; margin: 0.3rem 0; border-left: 4px solid #999;'>
                     <b>{strategy_name}</b>: {signal_text} <span style='color: #999; float: right;'>0점</span>
                 </div>
@@ -4463,92 +4522,180 @@ def _analyze_single_stock(api, stock_code: str):
 
     # 매매 전략
     st.markdown("#### 💰 추천 매매 전략")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        entry_diff = ((entry - current) / current) * 100 if current > 0 else 0
-        entry_color = "#FF4444" if entry_diff >= 0 else "#4444FF"
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
-            <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>🎯 추천 진입가</div>
-            <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{entry:,.0f}원</div>
-            <div style='background: {entry_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{entry_diff:+.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        loss_pct = ((stop - entry) / entry) * 100 if entry > 0 else 0
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
-            <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>🛑 손절가</div>
-            <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{stop:,.0f}원</div>
-            <div style='background: #4444FF; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{loss_pct:.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col3:
-        profit_pct = ((target - entry) / entry) * 100 if entry > 0 else 0
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
-            <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>🎁 목표가</div>
-            <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{target:,.0f}원</div>
-            <div style='background: #FF4444; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>+{profit_pct:.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col4:
-        rr_color = "#22c55e" if rr_ratio >= 1.5 else "#f59e0b"
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
-            <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>📊 R:R 비율</div>
-            <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>1:{rr_ratio:.1f}</div>
-            <div style='background: {rr_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{"좋음" if rr_ratio >= 1.5 else "보통"}</div>
-        </div>
-        """, unsafe_allow_html=True)
+
+    # 미리 계산
+    entry_diff = ((entry - current) / current) * 100 if current > 0 else 0
+    entry_color = "#FF4444" if entry_diff >= 0 else "#4444FF"
+    loss_pct = ((stop - entry) / entry) * 100 if entry > 0 else 0
+    profit_pct = ((target - entry) / entry) * 100 if entry > 0 else 0
+    rr_color = "#22c55e" if rr_ratio >= 1.5 else "#f59e0b"
+
+    # 모바일 vs 데스크톱 레이아웃
+    if is_mobile:
+        # 모바일: 2열 2행
+        row1_col1, row1_col2 = st.columns(2)
+        with row1_col1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 0.7rem; border-radius: 8px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.75rem;'>🎯 진입가</div>
+                <div style='color: #fff; font-size: 1.1rem; font-weight: bold;'>{entry:,.0f}</div>
+                <div style='background: {entry_color}; color: white; padding: 0.1rem 0.3rem; border-radius: 4px; display: inline-block; font-size: 0.8rem;'>{entry_diff:+.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with row1_col2:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 0.7rem; border-radius: 8px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.75rem;'>🛑 손절가</div>
+                <div style='color: #fff; font-size: 1.1rem; font-weight: bold;'>{stop:,.0f}</div>
+                <div style='background: #4444FF; color: white; padding: 0.1rem 0.3rem; border-radius: 4px; display: inline-block; font-size: 0.8rem;'>{loss_pct:.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        row2_col1, row2_col2 = st.columns(2)
+        with row2_col1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 0.7rem; border-radius: 8px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.75rem;'>🎁 목표가</div>
+                <div style='color: #fff; font-size: 1.1rem; font-weight: bold;'>{target:,.0f}</div>
+                <div style='background: #FF4444; color: white; padding: 0.1rem 0.3rem; border-radius: 4px; display: inline-block; font-size: 0.8rem;'>+{profit_pct:.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with row2_col2:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 0.7rem; border-radius: 8px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.75rem;'>📊 R:R</div>
+                <div style='color: #fff; font-size: 1.1rem; font-weight: bold;'>1:{rr_ratio:.1f}</div>
+                <div style='background: {rr_color}; color: white; padding: 0.1rem 0.3rem; border-radius: 4px; display: inline-block; font-size: 0.8rem;'>{"좋음" if rr_ratio >= 1.5 else "보통"}</div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        # 데스크톱: 4열
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>🎯 추천 진입가</div>
+                <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{entry:,.0f}원</div>
+                <div style='background: {entry_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{entry_diff:+.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>🛑 손절가</div>
+                <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{stop:,.0f}원</div>
+                <div style='background: #4444FF; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{loss_pct:.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col3:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>🎁 목표가</div>
+                <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{target:,.0f}원</div>
+                <div style='background: #FF4444; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>+{profit_pct:.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col4:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>📊 R:R 비율</div>
+                <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>1:{rr_ratio:.1f}</div>
+                <div style='background: {rr_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{"좋음" if rr_ratio >= 1.5 else "보통"}</div>
+            </div>
+            """, unsafe_allow_html=True)
 
     # 이동평균선 정보
     st.markdown("#### 📈 이동평균선 현황")
-    col1, col2, col3, col4 = st.columns(4)
-    with col1:
-        ma5_val = ma5.iloc[-1] if not np.isnan(ma5.iloc[-1]) else 0
-        ma5_diff = ((current - ma5_val) / ma5_val * 100) if ma5_val > 0 else 0
-        ma5_color = "#FF4444" if ma5_diff >= 0 else "#4444FF"
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
-            <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>MA5</div>
-            <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{ma5_val:,.0f}원</div>
-            <div style='background: {ma5_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{ma5_diff:+.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col2:
-        ma20_val = ma20.iloc[-1] if not np.isnan(ma20.iloc[-1]) else 0
-        ma20_diff = ((current - ma20_val) / ma20_val * 100) if ma20_val > 0 else 0
-        ma20_color = "#FF4444" if ma20_diff >= 0 else "#4444FF"
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
-            <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>MA20</div>
-            <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{ma20_val:,.0f}원</div>
-            <div style='background: {ma20_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{ma20_diff:+.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col3:
-        ma60_val = ma60.iloc[-1] if not np.isnan(ma60.iloc[-1]) else 0
-        ma60_diff = ((current - ma60_val) / ma60_val * 100) if ma60_val > 0 else 0
-        ma60_color = "#FF4444" if ma60_diff >= 0 else "#4444FF"
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
-            <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>MA60</div>
-            <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{ma60_val:,.0f}원</div>
-            <div style='background: {ma60_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{ma60_diff:+.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
-    with col4:
-        ma120_val = ma120.iloc[-1] if not np.isnan(ma120.iloc[-1]) else 0
-        ma120_diff = ((current - ma120_val) / ma120_val * 100) if ma120_val > 0 else 0
-        ma120_color = "#FF4444" if ma120_diff >= 0 else "#4444FF"
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
-            <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>MA120</div>
-            <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{ma120_val:,.0f}원</div>
-            <div style='background: {ma120_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{ma120_diff:+.1f}%</div>
-        </div>
-        """, unsafe_allow_html=True)
+
+    # 미리 계산
+    ma5_val = ma5.iloc[-1] if not np.isnan(ma5.iloc[-1]) else 0
+    ma5_diff = ((current - ma5_val) / ma5_val * 100) if ma5_val > 0 else 0
+    ma5_color = "#FF4444" if ma5_diff >= 0 else "#4444FF"
+
+    ma20_val = ma20.iloc[-1] if not np.isnan(ma20.iloc[-1]) else 0
+    ma20_diff = ((current - ma20_val) / ma20_val * 100) if ma20_val > 0 else 0
+    ma20_color = "#FF4444" if ma20_diff >= 0 else "#4444FF"
+
+    ma60_val = ma60.iloc[-1] if not np.isnan(ma60.iloc[-1]) else 0
+    ma60_diff = ((current - ma60_val) / ma60_val * 100) if ma60_val > 0 else 0
+    ma60_color = "#FF4444" if ma60_diff >= 0 else "#4444FF"
+
+    ma120_val = ma120.iloc[-1] if not np.isnan(ma120.iloc[-1]) else 0
+    ma120_diff = ((current - ma120_val) / ma120_val * 100) if ma120_val > 0 else 0
+    ma120_color = "#FF4444" if ma120_diff >= 0 else "#4444FF"
+
+    if is_mobile:
+        # 모바일: 2열 2행
+        ma_row1_col1, ma_row1_col2 = st.columns(2)
+        with ma_row1_col1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 0.7rem; border-radius: 8px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.75rem;'>MA5</div>
+                <div style='color: #fff; font-size: 1rem; font-weight: bold;'>{ma5_val:,.0f}</div>
+                <div style='background: {ma5_color}; color: white; padding: 0.1rem 0.3rem; border-radius: 4px; display: inline-block; font-size: 0.75rem;'>{ma5_diff:+.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with ma_row1_col2:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 0.7rem; border-radius: 8px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.75rem;'>MA20</div>
+                <div style='color: #fff; font-size: 1rem; font-weight: bold;'>{ma20_val:,.0f}</div>
+                <div style='background: {ma20_color}; color: white; padding: 0.1rem 0.3rem; border-radius: 4px; display: inline-block; font-size: 0.75rem;'>{ma20_diff:+.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        ma_row2_col1, ma_row2_col2 = st.columns(2)
+        with ma_row2_col1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 0.7rem; border-radius: 8px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.75rem;'>MA60</div>
+                <div style='color: #fff; font-size: 1rem; font-weight: bold;'>{ma60_val:,.0f}</div>
+                <div style='background: {ma60_color}; color: white; padding: 0.1rem 0.3rem; border-radius: 4px; display: inline-block; font-size: 0.75rem;'>{ma60_diff:+.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with ma_row2_col2:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 0.7rem; border-radius: 8px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.75rem;'>MA120</div>
+                <div style='color: #fff; font-size: 1rem; font-weight: bold;'>{ma120_val:,.0f}</div>
+                <div style='background: {ma120_color}; color: white; padding: 0.1rem 0.3rem; border-radius: 4px; display: inline-block; font-size: 0.75rem;'>{ma120_diff:+.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+    else:
+        # 데스크톱: 4열
+        col1, col2, col3, col4 = st.columns(4)
+        with col1:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>MA5</div>
+                <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{ma5_val:,.0f}원</div>
+                <div style='background: {ma5_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{ma5_diff:+.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col2:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>MA20</div>
+                <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{ma20_val:,.0f}원</div>
+                <div style='background: {ma20_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{ma20_diff:+.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col3:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>MA60</div>
+                <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{ma60_val:,.0f}원</div>
+                <div style='background: {ma60_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{ma60_diff:+.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
+        with col4:
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 10px; text-align: center; border: 1px solid #333;'>
+                <div style='color: #888; font-size: 0.85rem; margin-bottom: 0.3rem;'>MA120</div>
+                <div style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{ma120_val:,.0f}원</div>
+                <div style='background: {ma120_color}; color: white; padding: 0.2rem 0.5rem; border-radius: 4px; display: inline-block; margin-top: 0.3rem; font-weight: bold;'>{ma120_diff:+.1f}%</div>
+            </div>
+            """, unsafe_allow_html=True)
 
     # 차트 표시 (expander 제거 - 디버깅용)
     # expander 내부 체크박스 문제 확인을 위해 임시로 직접 렌더링
