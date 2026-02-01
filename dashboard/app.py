@@ -648,22 +648,24 @@ if st.session_state.get('mobile_mode', False):
     # 컴팩트 버튼 메뉴 (Streamlit 네이티브)
     mobile_menu_cols = st.columns(5)
     mobile_menus = [
-        ("🏠", "home"),
-        ("📊", "chart_strategy"),
-        ("🎯", "chart_strategy2"),  # 전략도 차트전략으로
-        ("💹", "quant_trading"),
-        ("⚙️", "settings"),
+        ("🏠", "home"),           # 홈
+        ("📊", "chart_strategy"), # 차트전략
+        ("🎯", "strategy"),       # 전략실행 (마법공식)
+        ("💹", "quant_trading"),  # 퀀트매매
+        ("⚙️", "settings"),       # 설정
     ]
+    current_menu_value = menu_options.get(st.session_state.get('menu_selection', '🏠 홈'), 'home')
+
     for i, (icon, key) in enumerate(mobile_menus):
         with mobile_menu_cols[i]:
-            actual_key = "chart_strategy" if key == "chart_strategy2" else key
-            is_selected = menu_options.get(st.session_state.get('menu_selection', '🏠 홈')) == actual_key
-            if st.button(icon, key=f"mobile_menu_{key}", use_container_width=True,
+            is_selected = (current_menu_value == key)
+            if st.button(icon, key=f"mob_{key}_{i}", use_container_width=True,
                         type="primary" if is_selected else "secondary"):
+                # 메뉴 전환
                 menu_keys = list(menu_options.keys())
                 menu_values = list(menu_options.values())
-                if actual_key in menu_values:
-                    idx = menu_values.index(actual_key)
+                if key in menu_values:
+                    idx = menu_values.index(key)
                     st.session_state['menu_selection'] = menu_keys[idx]
                     st.rerun()
     st.markdown("<div style='margin-bottom: 0.3rem;'></div>", unsafe_allow_html=True)
