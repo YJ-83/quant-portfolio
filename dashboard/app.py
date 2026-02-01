@@ -635,43 +635,86 @@ st.sidebar.markdown("""
 
 # 모바일 모드일 때 상단 퀵 메뉴 표시
 if st.session_state.get('mobile_mode', False):
-    # 모바일 URL 모드일 때 더 완전한 네비게이션 표시
+    # 모바일 URL 모드일 때 컴팩트 헤더 + 네비게이션
     if st.session_state.get('mobile_url_mode', False):
-        st.markdown("""
+        # 현재 선택된 메뉴 확인
+        current_menu_key = menu_options.get(st.session_state.get('menu_selection', '🏠 홈'), 'home')
+
+        # 메뉴 정의
+        mobile_menus = [
+            ("🏠", "home", "홈"),
+            ("📊", "chart_strategy", "차트"),
+            ("🎯", "chart_strategy", "전략"),
+            ("💹", "quant_trading", "매매"),
+            ("⚙️", "settings", "설정"),
+        ]
+
+        # 버튼 HTML 생성
+        buttons_html = ""
+        for i, (icon, key, label) in enumerate(mobile_menus):
+            is_selected = (current_menu_key == key)
+            bg_color = "linear-gradient(135deg, #ff6b6b 0%, #ee5a5a 100%)" if is_selected else "rgba(255,255,255,0.15)"
+            border = "none" if is_selected else "1px solid rgba(255,255,255,0.3)"
+            buttons_html += f"""
+            <button onclick="window.location.href='?mobile=1&menu={key}'"
+                    style='background: {bg_color}; border: {border}; border-radius: 8px;
+                           padding: 6px 4px; color: white; cursor: pointer; flex: 1;
+                           display: flex; flex-direction: column; align-items: center; gap: 2px;
+                           font-size: 0.7rem; min-width: 0;'>
+                <span style='font-size: 1.1rem;'>{icon}</span>
+                <span style='font-size: 0.65rem; white-space: nowrap;'>{label}</span>
+            </button>
+            """
+
+        st.markdown(f"""
         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-                    padding: 0.8rem 1rem; margin: -1rem -1rem 1rem -1rem;
-                    display: flex; align-items: center; justify-content: space-between;'>
-            <span style='font-size: 1.3rem; color: white; font-weight: 700;'>🎮 YJ 놀이터</span>
-            <span style='color: rgba(255,255,255,0.7); font-size: 0.8rem;'>모바일</span>
+                    padding: 8px 10px; margin: -1rem -1rem 0.5rem -1rem;'>
+            <div style='display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;'>
+                <span style='font-size: 1rem; color: white; font-weight: 700;'>🎮 YJ 놀이터</span>
+                <span style='color: rgba(255,255,255,0.6); font-size: 0.7rem;'>📱</span>
+            </div>
+            <div style='display: flex; gap: 6px;'>
+                {buttons_html}
+            </div>
         </div>
         """, unsafe_allow_html=True)
 
-    # 모바일 메뉴 (5개로 확장) - 차트전략 중심
-    mobile_menu_cols = st.columns(5)
-    mobile_menus = [
-        ("🏠", "home", "홈"),
-        ("📊", "chart_strategy", "차트"),
-        ("🎯", "chart_strategy2", "전략"),  # 차트전략 (별도 키)
-        ("💹", "quant_trading", "매매"),
-        ("⚙️", "settings", "설정"),
-    ]
-    for i, (icon, key, label) in enumerate(mobile_menus):
-        with mobile_menu_cols[i]:
-            # 실제 메뉴 키 (chart_strategy2 → chart_strategy 매핑)
-            actual_key = "chart_strategy" if key == "chart_strategy2" else key
-            # 현재 선택된 메뉴 강조
-            is_selected = menu_options.get(st.session_state.get('menu_selection', '🏠 홈')) == actual_key
-            btn_style = "primary" if is_selected else "secondary"
-            if st.button(f"{icon} {label}", key=f"mobile_menu_{key}", use_container_width=True,
-                        type=btn_style if is_selected else "secondary"):
-                # 해당 메뉴로 이동
-                menu_keys = list(menu_options.keys())
-                menu_values = list(menu_options.values())
-                if actual_key in menu_values:
-                    idx = menu_values.index(actual_key)
-                    st.session_state['menu_selection'] = menu_keys[idx]
+        # URL 파라미터로 메뉴 전환 처리
+        query_params = st.query_params
+        menu_param = query_params.get('menu', None)
+        if menu_param:
+            menu_keys = list(menu_options.keys())
+            menu_values = list(menu_options.values())
+            if menu_param in menu_values:
+                idx = menu_values.index(menu_param)
+                target_menu = menu_keys[idx]
+                if st.session_state.get('menu_selection') != target_menu:
+                    st.session_state['menu_selection'] = target_menu
                     st.rerun()
-    st.markdown("---")
+
+    else:
+        # 일반 모바일 모드 (사이드바 토글로 진입한 경우) - 컴팩트 버튼
+        mobile_menu_cols = st.columns(5)
+        mobile_menus = [
+            ("🏠", "home", "홈"),
+            ("📊", "chart_strategy", "차트"),
+            ("🎯", "chart_strategy2", "전략"),
+            ("💹", "quant_trading", "매매"),
+            ("⚙️", "settings", "설정"),
+        ]
+        for i, (icon, key, label) in enumerate(mobile_menus):
+            with mobile_menu_cols[i]:
+                actual_key = "chart_strategy" if key == "chart_strategy2" else key
+                is_selected = menu_options.get(st.session_state.get('menu_selection', '🏠 홈')) == actual_key
+                if st.button(f"{icon}", key=f"mobile_menu_{key}", use_container_width=True,
+                            type="primary" if is_selected else "secondary"):
+                    menu_keys = list(menu_options.keys())
+                    menu_values = list(menu_options.values())
+                    if actual_key in menu_values:
+                        idx = menu_values.index(actual_key)
+                        st.session_state['menu_selection'] = menu_keys[idx]
+                        st.rerun()
+    st.markdown("<div style='margin-bottom: 0.5rem;'></div>", unsafe_allow_html=True)
 
 # 페이지 라우팅
 if menu == "🏠 홈":
