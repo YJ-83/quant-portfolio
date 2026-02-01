@@ -250,13 +250,12 @@ class GeminiAnalyzer:
     ) -> Dict:
         """종합 매매 추천 생성"""
 
-        # 캐시 - fallback 결과는 캐시하지 않음 (is_fallback 체크)
+        # 캐시 완전 비활성화 - 매번 API 호출 강제 (디버깅용)
+        # 캐시 키 생성만 하고, 저장/조회는 하지 않음
         cache_key = f"rec_{stock_name}_{datetime.now().strftime('%Y%m%d%H')}"
+        # 기존 캐시 삭제 (fallback 결과가 남아있을 수 있음)
         if cache_key in _ANALYSIS_CACHE:
-            cached = _ANALYSIS_CACHE[cache_key]
-            # fallback 결과가 아닌 경우에만 캐시 사용
-            if time.time() - cached['time'] < _CACHE_DURATION and not cached['data'].get('is_fallback'):
-                return cached['data']
+            del _ANALYSIS_CACHE[cache_key]
 
         if not self.is_available():
             return self._fallback_recommendation(technical_signals, news_sentiment)
@@ -307,7 +306,8 @@ class GeminiAnalyzer:
             'timestamp': datetime.now().isoformat()
         }
 
-        _ANALYSIS_CACHE[cache_key] = {'data': result, 'time': time.time()}
+        # 캐시 저장 비활성화 (디버깅용)
+        # _ANALYSIS_CACHE[cache_key] = {'data': result, 'time': time.time()}
         return result
 
     def _summarize_technical(self, signals: Dict) -> str:
