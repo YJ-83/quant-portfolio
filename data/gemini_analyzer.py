@@ -11,18 +11,23 @@ from datetime import datetime
 
 # Gemini API 라이브러리 (새 버전)
 GEMINI_AVAILABLE = False
+GEMINI_NEW_API = False
 genai_client = None
 
 try:
     from google import genai
     GEMINI_AVAILABLE = True
+    GEMINI_NEW_API = True
+    print("[Gemini] google-genai 패키지 로드 성공 (새 API)")
 except ImportError:
     try:
         # 구버전 fallback
         import google.generativeai as genai_old
         GEMINI_AVAILABLE = True
+        GEMINI_NEW_API = False
+        print("[Gemini] google.generativeai 패키지 로드 성공 (구 API)")
     except ImportError:
-        print("Warning: google-genai 패키지가 설치되지 않았습니다. pip install google-genai")
+        print("[Gemini] Warning: Gemini 패키지가 설치되지 않았습니다.")
 
 
 # ============================================================
@@ -45,23 +50,37 @@ class GeminiAnalyzer:
         self.initialized = False
         self.use_new_api = False
 
+        self.init_error = None
+
         if self.api_key and GEMINI_AVAILABLE:
-            try:
-                # 새 API 시도
-                from google import genai
-                self.client = genai.Client(api_key=self.api_key)
-                self.use_new_api = True
-                self.initialized = True
-            except Exception as e1:
+            if GEMINI_NEW_API:
                 try:
-                    # 구 API fallback
+                    # 새 API 시도
+                    from google import genai
+                    self.client = genai.Client(api_key=self.api_key)
+                    self.use_new_api = True
+                    self.initialized = True
+                    print(f"[Gemini] 새 API 초기화 성공 (키: {self.api_key[:10]}...)")
+                except Exception as e1:
+                    self.init_error = str(e1)
+                    print(f"[Gemini] 새 API 초기화 실패: {e1}")
+            else:
+                try:
+                    # 구 API
                     import google.generativeai as genai_old
                     genai_old.configure(api_key=self.api_key)
                     self.client = genai_old.GenerativeModel('gemini-1.5-flash')
                     self.use_new_api = False
                     self.initialized = True
+                    print(f"[Gemini] 구 API 초기화 성공 (키: {self.api_key[:10]}...)")
                 except Exception as e2:
-                    print(f"Gemini 초기화 실패: {e1}, {e2}")
+                    self.init_error = str(e2)
+                    print(f"[Gemini] 구 API 초기화 실패: {e2}")
+        else:
+            if not self.api_key:
+                self.init_error = "API 키 없음"
+            elif not GEMINI_AVAILABLE:
+                self.init_error = "Gemini 패키지 없음"
 
     def is_available(self) -> bool:
         """Gemini API 사용 가능 여부"""

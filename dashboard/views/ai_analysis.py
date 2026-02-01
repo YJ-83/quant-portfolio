@@ -94,9 +94,11 @@ def render_ai_analysis():
         col1, col2, col3 = st.columns(3)
         with col1:
             if analyzer.is_available():
-                st.success("✅ Gemini AI 연결됨")
+                api_type = "새 API" if analyzer.use_new_api else "구 API"
+                st.success(f"✅ Gemini AI 연결됨 ({api_type})")
             else:
-                st.warning("⚠️ Gemini API 키 설정 필요")
+                error_msg = getattr(analyzer, 'init_error', 'API 키 필요')
+                st.warning(f"⚠️ {error_msg}")
         with col2:
             st.info("📰 뉴스 크롤링 준비됨")
         with col3:
@@ -504,84 +506,77 @@ def _display_recommendation_result(
     stock_name: str, stock_code: str, current_price: float, price_change: float,
     technical_signals: dict, news_sentiment: dict, recommendation: dict, is_mobile: bool
 ):
-    """AI 추천 결과 표시"""
+    """AI 추천 결과 표시 - 검은 배경 스타일"""
 
     rec = recommendation.get('recommendation', '관망')
     confidence = recommendation.get('confidence', 3)
 
     if rec == '매수':
-        rec_color = '#00C851'
-        rec_bg = 'rgba(0, 200, 81, 0.15)'
+        rec_color = '#00ff00'
+        rec_bg = '#0d3d0d'
         rec_emoji = '📈'
     elif rec == '매도':
         rec_color = '#ff4444'
-        rec_bg = 'rgba(255, 68, 68, 0.15)'
+        rec_bg = '#3d0d0d'
         rec_emoji = '📉'
     else:
         rec_color = '#ffbb33'
-        rec_bg = 'rgba(255, 187, 51, 0.15)'
+        rec_bg = '#3d3d0d'
         rec_emoji = '⏸️'
 
     stars = "⭐" * confidence + "☆" * (5 - confidence)
-    price_color = '#00C851' if price_change >= 0 else '#ff4444'
+    price_color = '#00ff00' if price_change >= 0 else '#ff4444'
 
-    # 메인 추천 카드
+    # 메인 추천 카드 - 검은 배경
     st.markdown(f"""
-    <div style='background: {rec_bg}; border: 2px solid {rec_color}; border-radius: 15px;
+    <div style='background: #1a1a2e; border: 2px solid {rec_color}; border-radius: 15px;
                 padding: {"15px" if is_mobile else "20px"}; margin: 15px 0;'>
         <div style='display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;'>
             <div>
-                <h3 style='margin: 0; color: white;'>{stock_name}</h3>
-                <p style='margin: 5px 0; color: rgba(255,255,255,0.7);'>
+                <h3 style='margin: 0; color: #fff; font-size: 1.5rem;'>{stock_name}</h3>
+                <p style='margin: 8px 0; color: #fff; font-size: 1.2rem;'>
                     {current_price:,.0f}원
-                    <span style='color: {price_color};'>({price_change:+.2f}%)</span>
+                    <span style='color: {price_color}; font-weight: bold;'>({price_change:+.2f}%)</span>
                 </p>
             </div>
             <div style='text-align: right;'>
-                <div style='font-size: {"1.5rem" if is_mobile else "2rem"}; color: {rec_color}; font-weight: bold;'>
+                <div style='font-size: {"1.8rem" if is_mobile else "2.5rem"}; color: {rec_color}; font-weight: bold;'>
                     {rec_emoji} {rec}
                 </div>
-                <div style='color: rgba(255,255,255,0.6); font-size: 0.9rem;'>신뢰도: {stars}</div>
+                <div style='color: #fff; font-size: 1rem;'>신뢰도: {stars}</div>
             </div>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    # 상세 정보 (PC만 2컬럼)
-    if is_mobile:
-        # 기술적 분석
-        st.markdown("**📊 기술적 분석**")
-        for key, value in technical_signals.items():
-            if key not in ['macd', 'macd_signal', 'rsi']:
-                st.caption(f"• {key}: {value}")
+    # 상세 정보 - 검은 배경 카드
+    st.markdown(f"""
+    <div style='display: flex; gap: 15px; margin: 15px 0;'>
+        <div style='flex: 1; background: #1a1a2e; padding: 15px; border-radius: 10px; border: 1px solid #333;'>
+            <h4 style='color: #fff; margin: 0 0 10px 0;'>📊 기술적 분석</h4>
+            <div style='color: #fff;'>• RSI: {technical_signals.get('rsi', 50):.1f} ({technical_signals.get('rsi_status', '중립')})</div>
+            <div style='color: #fff;'>• 추세: {technical_signals.get('ma_trend', '정보없음')}</div>
+        </div>
+        <div style='flex: 1; background: #1a1a2e; padding: 15px; border-radius: 10px; border: 1px solid #333;'>
+            <h4 style='color: #fff; margin: 0 0 10px 0;'>📰 뉴스 감성</h4>
+            <div style='color: #fff;'>• 전체: {_sentiment_korean(news_sentiment.get('overall_sentiment', 'neutral'))}</div>
+            <div style='color: #fff;'>• 긍정: {news_sentiment.get('positive_ratio', 0):.0f}% / 부정: {news_sentiment.get('negative_ratio', 0):.0f}%</div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
-        # 뉴스 감성
-        st.markdown("**📰 뉴스 감성**")
-        st.caption(f"• 전체: {_sentiment_korean(news_sentiment.get('overall_sentiment', 'neutral'))}")
-        st.caption(f"• 긍정: {news_sentiment.get('positive_ratio', 0):.0f}% / 부정: {news_sentiment.get('negative_ratio', 0):.0f}%")
-    else:
-        col1, col2 = st.columns(2)
-
-        with col1:
-            st.markdown("#### 📊 기술적 분석")
-            for key, value in technical_signals.items():
-                if key not in ['macd', 'macd_signal']:
-                    if key == 'rsi':
-                        st.write(f"• **RSI:** {value:.1f} ({technical_signals.get('rsi_status', '')})")
-                    else:
-                        st.write(f"• **{key}:** {value}")
-
-        with col2:
-            st.markdown("#### 📰 뉴스 감성")
-            st.write(f"• **전체:** {_sentiment_korean(news_sentiment.get('overall_sentiment', 'neutral'))}")
-            st.write(f"• **긍정:** {news_sentiment.get('positive_ratio', 0):.0f}%")
-            st.write(f"• **부정:** {news_sentiment.get('negative_ratio', 0):.0f}%")
-
-    # AI 분석 근거
+    # AI 분석 근거 - 검은 배경
     reason = recommendation.get('reason', '')
     if reason:
-        st.markdown("---")
-        st.info(f"🤖 **AI 분석:** {reason}")
+        st.markdown(f"""
+        <div style='background: #1a1a2e; padding: 15px; border-radius: 10px; margin: 15px 0; border-left: 4px solid #667eea;'>
+            <div style='color: #fff;'>🤖 <strong>AI 분석:</strong> {reason}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     if recommendation.get('is_fallback'):
-        st.caption("ℹ️ 규칙 기반 분석입니다. Gemini API 연결 시 더 정확한 분석이 가능합니다.")
+        st.markdown("""
+        <div style='background: #2d2d44; padding: 10px 15px; border-radius: 8px; margin-top: 10px;'>
+            <span style='color: #aaa;'>ℹ️ 규칙 기반 분석입니다. Gemini API 연결 시 더 정확한 분석이 가능합니다.</span>
+        </div>
+        """, unsafe_allow_html=True)
