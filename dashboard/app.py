@@ -646,27 +646,29 @@ if st.session_state.get('mobile_mode', False):
         </div>
         """, unsafe_allow_html=True)
 
-    # 모바일 메뉴 (5개로 확장)
+    # 모바일 메뉴 (5개로 확장) - 차트전략 중심
     mobile_menu_cols = st.columns(5)
     mobile_menus = [
         ("🏠", "home", "홈"),
         ("📊", "chart_strategy", "차트"),
-        ("🎯", "strategy", "전략"),
+        ("🎯", "chart_strategy2", "전략"),  # 차트전략 (별도 키)
         ("💹", "quant_trading", "매매"),
         ("⚙️", "settings", "설정"),
     ]
     for i, (icon, key, label) in enumerate(mobile_menus):
         with mobile_menu_cols[i]:
+            # 실제 메뉴 키 (chart_strategy2 → chart_strategy 매핑)
+            actual_key = "chart_strategy" if key == "chart_strategy2" else key
             # 현재 선택된 메뉴 강조
-            is_selected = menu_options.get(st.session_state.get('menu_selection', '🏠 홈')) == key
+            is_selected = menu_options.get(st.session_state.get('menu_selection', '🏠 홈')) == actual_key
             btn_style = "primary" if is_selected else "secondary"
-            if st.button(f"{icon}\n{label}", key=f"mobile_menu_{key}", use_container_width=True,
+            if st.button(f"{icon} {label}", key=f"mobile_menu_{key}", use_container_width=True,
                         type=btn_style if is_selected else "secondary"):
                 # 해당 메뉴로 이동
                 menu_keys = list(menu_options.keys())
                 menu_values = list(menu_options.values())
-                if key in menu_values:
-                    idx = menu_values.index(key)
+                if actual_key in menu_values:
+                    idx = menu_values.index(actual_key)
                     st.session_state['menu_selection'] = menu_keys[idx]
                     st.rerun()
     st.markdown("---")
