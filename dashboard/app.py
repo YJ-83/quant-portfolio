@@ -649,12 +649,13 @@ if st.session_state.get('mobile_mode', False):
     </div>
     """, unsafe_allow_html=True)
 
-    # 컴팩트 버튼 메뉴 (Streamlit 네이티브)
-    mobile_menu_cols = st.columns(5)
+    # 컴팩트 버튼 메뉴 (Streamlit 네이티브) - 6개 메뉴
+    mobile_menu_cols = st.columns(6)
     mobile_menus = [
         ("🏠", "home", "홈"),
         ("📊", "chart_strategy", "차트"),
         ("🎯", "strategy", "전략"),
+        ("📈", "backtest", "백테"),
         ("💹", "quant_trading", "매매"),
         ("⚙️", "settings", "설정"),
     ]
