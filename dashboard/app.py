@@ -542,17 +542,21 @@ menu_options = {
 if 'menu_selection' not in st.session_state:
     st.session_state['menu_selection'] = "🏠 홈"
 
-menu = st.sidebar.radio(
-    "메뉴",
-    list(menu_options.keys()),
-    index=list(menu_options.keys()).index(st.session_state.get('menu_selection', "🏠 홈")),
-    key="sidebar_menu",
-    label_visibility="collapsed"
-)
-
-# 사이드바 메뉴 변경 시 session_state 업데이트
-if menu != st.session_state.get('menu_selection'):
-    st.session_state['menu_selection'] = menu
+# 사이드바 라디오 (모바일 모드가 아닐 때만 표시)
+if not st.session_state.get('mobile_mode', False):
+    menu = st.sidebar.radio(
+        "메뉴",
+        list(menu_options.keys()),
+        index=list(menu_options.keys()).index(st.session_state.get('menu_selection', "🏠 홈")),
+        key="sidebar_menu",
+        label_visibility="collapsed"
+    )
+    # 사이드바 메뉴 변경 시 session_state 업데이트
+    if menu != st.session_state.get('menu_selection'):
+        st.session_state['menu_selection'] = menu
+else:
+    # 모바일 모드: session_state에서 직접 메뉴 가져오기
+    menu = st.session_state.get('menu_selection', "🏠 홈")
 
 # 사이드바 상태 정보
 st.sidebar.markdown("---")
@@ -648,18 +652,19 @@ if st.session_state.get('mobile_mode', False):
     # 컴팩트 버튼 메뉴 (Streamlit 네이티브)
     mobile_menu_cols = st.columns(5)
     mobile_menus = [
-        ("🏠", "home"),           # 홈
-        ("📊", "chart_strategy"), # 차트전략
-        ("🎯", "strategy"),       # 전략실행 (마법공식)
-        ("💹", "quant_trading"),  # 퀀트매매
-        ("⚙️", "settings"),       # 설정
+        ("🏠", "home", "홈"),
+        ("📊", "chart_strategy", "차트"),
+        ("🎯", "strategy", "전략"),
+        ("💹", "quant_trading", "매매"),
+        ("⚙️", "settings", "설정"),
     ]
     current_menu_value = menu_options.get(st.session_state.get('menu_selection', '🏠 홈'), 'home')
 
-    for i, (icon, key) in enumerate(mobile_menus):
+    for i, (icon, key, label) in enumerate(mobile_menus):
         with mobile_menu_cols[i]:
             is_selected = (current_menu_value == key)
-            if st.button(icon, key=f"mob_{key}_{i}", use_container_width=True,
+            btn_label = f"{icon}\n{label}"
+            if st.button(btn_label, key=f"mob_{key}_{i}", use_container_width=True,
                         type="primary" if is_selected else "secondary"):
                 # 메뉴 전환
                 menu_keys = list(menu_options.keys())
