@@ -187,27 +187,35 @@ def _render_stock_news_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_mo
                             emoji = '⚪'
                             badge = '중립'
 
-                        # Streamlit 네이티브 컴포넌트 사용 (가시성 개선)
-                        with st.container():
-                            col_news, col_badge = st.columns([5, 1])
-                            with col_news:
-                                st.markdown(f"**{emoji} {title}**")
-                                st.caption(f"📰 {source} · 📅 {date}")
-                            with col_badge:
-                                st.markdown(f"<span style='background: {color}33; color: {color}; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;'>{badge}</span>", unsafe_allow_html=True)
+                        # 검은 배경 뉴스 카드
+                        st.markdown(f"""
+                        <div style='background: #1a1a2e; padding: 12px 15px; border-radius: 8px;
+                                    margin-bottom: 8px; border-left: 4px solid {color};
+                                    display: flex; justify-content: space-between; align-items: center;'>
+                            <div style='flex: 1;'>
+                                <div style='color: #fff; font-size: 0.95rem; font-weight: 500;'>{emoji} {title}</div>
+                                <div style='color: #888; font-size: 0.8rem; margin-top: 4px;'>📰 {source} · 📅 {date}</div>
+                            </div>
+                            <span style='background: {color}33; color: {color}; padding: 5px 12px;
+                                         border-radius: 15px; font-size: 0.8rem; font-weight: bold;'>{badge}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
 
-                    # AI 심층 분석 버튼 (PC만)
-                    if not is_mobile and analyzer.is_available():
-                        st.markdown("---")
-                        if st.button("🤖 AI 심층 분석 요청", key="ai_deep_analysis"):
+                    # AI 심층 분석 버튼 (항상 표시, API 없으면 메시지)
+                    st.markdown("---")
+                    if st.button("🤖 AI 심층 분석 요청", key="ai_deep_analysis", type="primary"):
+                        if analyzer.is_available():
                             with st.spinner("Gemini AI 분석 중..."):
                                 titles = [n['title'] for n in news_list]
                                 ai_result = analyzer.analyze_news_sentiment(titles, stock_name)
 
                                 if 'error' not in ai_result:
-                                    st.success(f"**AI 분석:** {ai_result['analysis']}")
+                                    st.success(f"**AI 분석 결과:** {ai_result.get('analysis', '분석 완료')}")
+                                    st.info(f"감성: {ai_result.get('sentiment', 'unknown')} | 점수: {ai_result.get('score', 0):.2f}")
                                 else:
-                                    st.error(f"AI 분석 실패: {ai_result['error']}")
+                                    st.error(f"AI 분석 실패: {ai_result.get('error', '알 수 없는 오류')}")
+                        else:
+                            st.warning("⚠️ Gemini API 키가 설정되지 않았습니다. 설정 탭에서 API 키를 입력하세요.")
                 else:
                     st.warning("해당 종목의 뉴스를 찾을 수 없습니다.")
 
@@ -325,14 +333,19 @@ def _render_market_news_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_m
                     emoji = '⚪'
                     badge = '중립'
 
-                # Streamlit 네이티브 컴포넌트 사용 (가시성 개선)
-                with st.container():
-                    col_news, col_badge = st.columns([5, 1])
-                    with col_news:
-                        st.markdown(f"**{emoji} {title}**")
-                        st.caption(f"📰 {source} · 📅 {date}")
-                    with col_badge:
-                        st.markdown(f"<span style='background: {color}33; color: {color}; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem;'>{badge}</span>", unsafe_allow_html=True)
+                # 검은 배경 뉴스 카드
+                st.markdown(f"""
+                <div style='background: #1a1a2e; padding: 12px 15px; border-radius: 8px;
+                            margin-bottom: 8px; border-left: 4px solid {color};
+                            display: flex; justify-content: space-between; align-items: center;'>
+                    <div style='flex: 1;'>
+                        <div style='color: #fff; font-size: 0.95rem; font-weight: 500;'>{emoji} {title}</div>
+                        <div style='color: #888; font-size: 0.8rem; margin-top: 4px;'>📰 {source} · 📅 {date}</div>
+                    </div>
+                    <span style='background: {color}33; color: {color}; padding: 5px 12px;
+                                 border-radius: 15px; font-size: 0.8rem; font-weight: bold;'>{badge}</span>
+                </div>
+                """, unsafe_allow_html=True)
         else:
             st.info("시장 뉴스를 불러오는 중...")
 
@@ -416,23 +429,30 @@ def _display_sentiment_summary(batch_result: dict, is_mobile: bool, title: str =
         main_emoji = '⚪'
         main_text = '중립적'
 
-    # Streamlit 네이티브 컴포넌트 사용
-    st.markdown(f"### {main_emoji} {title} 뉴스 감성 분석")
-
-    col_title, col_result = st.columns([3, 1])
-    with col_title:
-        st.caption(f"총 {total}건 분석 완료")
-    with col_result:
-        st.markdown(f"**{main_text}**")
-
-    # 감성 비율 카드
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric(label="🟢 긍정", value=f"{pos}", delta=f"{pos_ratio:.0f}%")
-    with col2:
-        st.metric(label="🔴 부정", value=f"{neg}", delta=f"{neg_ratio:.0f}%", delta_color="inverse")
-    with col3:
-        st.metric(label="⚪ 중립", value=f"{neu}")
+    # 검은 배경 카드 스타일로 가시성 개선
+    st.markdown(f"""
+    <div style='background: #1a1a2e; padding: 20px; border-radius: 12px; margin: 15px 0; border: 1px solid #333;'>
+        <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px;'>
+            <h3 style='margin: 0; color: #fff;'>{main_emoji} {title} 뉴스 감성 분석</h3>
+            <span style='color: #fff; font-size: 1.3rem; font-weight: bold;'>{main_text}</span>
+        </div>
+        <p style='color: #aaa; margin-bottom: 15px;'>총 {total}건 분석 완료</p>
+        <div style='display: flex; gap: 15px;'>
+            <div style='flex: 1; background: #0d3d0d; padding: 15px; border-radius: 10px; text-align: center;'>
+                <div style='color: #00ff00; font-size: 2rem; font-weight: bold;'>{pos}</div>
+                <div style='color: #00ff00;'>🟢 긍정 ({pos_ratio:.0f}%)</div>
+            </div>
+            <div style='flex: 1; background: #3d0d0d; padding: 15px; border-radius: 10px; text-align: center;'>
+                <div style='color: #ff4444; font-size: 2rem; font-weight: bold;'>{neg}</div>
+                <div style='color: #ff4444;'>🔴 부정 ({neg_ratio:.0f}%)</div>
+            </div>
+            <div style='flex: 1; background: #3d3d0d; padding: 15px; border-radius: 10px; text-align: center;'>
+                <div style='color: #ffbb33; font-size: 2rem; font-weight: bold;'>{neu}</div>
+                <div style='color: #ffbb33;'>⚪ 중립</div>
+            </div>
+        </div>
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def _calculate_technical_signals(df: pd.DataFrame) -> dict:
