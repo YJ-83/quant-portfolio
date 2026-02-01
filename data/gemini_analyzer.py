@@ -110,6 +110,10 @@ class GeminiAnalyzer:
 
     def _generate_content(self, prompt: str, max_tokens: int = 150) -> Optional[str]:
         """통합 컨텐츠 생성 - 여러 모델 시도"""
+        # 디버깅: 함수 호출 마커 설정
+        self.last_error = "API_CALL_STARTED"
+        print("[Gemini] _generate_content 진입")
+
         if not self.is_available():
             self.last_error = "API 사용 불가"
             return None
@@ -275,8 +279,14 @@ class GeminiAnalyzer:
 근거: [한 줄]"""
 
         print(f"[Gemini] get_stock_recommendation 호출 - {stock_name}")
-        result_text = self._generate_content(prompt, 100)
-        print(f"[Gemini] _generate_content 결과: {result_text[:50] if result_text else 'None'}")
+
+        try:
+            result_text = self._generate_content(prompt, 100)
+            print(f"[Gemini] _generate_content 결과: {result_text[:50] if result_text else 'None'}")
+        except Exception as gen_error:
+            self.last_error = f"generate_content 예외: {str(gen_error)[:200]}"
+            print(f"[Gemini] _generate_content 예외 발생: {gen_error}")
+            return self._fallback_recommendation(technical_signals, news_sentiment)
 
         if not result_text:
             print(f"[Gemini] fallback으로 전환, last_error: {self.last_error}")
