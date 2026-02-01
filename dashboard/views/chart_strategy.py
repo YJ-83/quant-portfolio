@@ -3516,25 +3516,17 @@ def _render_comprehensive_recommendation_section(api):
     # ========== 개별 종목 검색 섹션 ==========
     st.markdown("### 🔎 개별 종목 점수 조회")
 
-    # 전체 종목 리스트 로드 (캐싱 비활성화 - stock_list.py에서 자체 캐싱)
-    def _load_all_stocks_for_search():
-        kospi = get_kospi_stocks()
-        kosdaq = get_kosdaq_stocks()
-        all_stocks = kospi + kosdaq
-        # "종목명 (종목코드)" 형식으로 변환
-        stock_options = ["-- 종목 선택 --"] + [f"{name} ({code})" for code, name in all_stocks]
-        stock_map = {f"{name} ({code})": (code, name) for code, name in all_stocks}
-        return stock_options, stock_map
+    # 전체 종목 리스트 로드 (매번 새로 로드 - stock_list.py에서 자체 캐싱됨)
+    kospi = get_kospi_stocks()
+    kosdaq = get_kosdaq_stocks()
+    all_stocks = kospi + kosdaq
 
-    # 세션 캐시 사용 (빈 결과면 재로드)
-    if 'stock_options_cache' not in st.session_state or len(st.session_state.get('stock_options_cache', [])) <= 1:
-        stock_options, stock_map = _load_all_stocks_for_search()
-        if len(stock_options) > 1:  # 종목이 있을 때만 캐시
-            st.session_state['stock_options_cache'] = stock_options
-            st.session_state['stock_map_cache'] = stock_map
-    else:
-        stock_options = st.session_state['stock_options_cache']
-        stock_map = st.session_state['stock_map_cache']
+    # 디버깅: 종목 수 출력
+    print(f"[chart_strategy] 종목 로드: KOSPI {len(kospi)}개, KOSDAQ {len(kosdaq)}개, 전체 {len(all_stocks)}개")
+
+    # "종목명 (종목코드)" 형식으로 변환
+    stock_options = ["-- 종목 선택 --"] + [f"{name} ({code})" for code, name in all_stocks]
+    stock_map = {f"{name} ({code})": (code, name) for code, name in all_stocks}
 
     # selectbox로 자동완성 검색 (Streamlit의 selectbox는 검색 기능 내장)
     col1, col2 = st.columns([3, 1])
