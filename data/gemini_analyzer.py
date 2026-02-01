@@ -250,11 +250,12 @@ class GeminiAnalyzer:
     ) -> Dict:
         """종합 매매 추천 생성"""
 
-        # 캐시
+        # 캐시 - fallback 결과는 캐시하지 않음 (is_fallback 체크)
         cache_key = f"rec_{stock_name}_{datetime.now().strftime('%Y%m%d%H')}"
         if cache_key in _ANALYSIS_CACHE:
             cached = _ANALYSIS_CACHE[cache_key]
-            if time.time() - cached['time'] < _CACHE_DURATION:
+            # fallback 결과가 아닌 경우에만 캐시 사용
+            if time.time() - cached['time'] < _CACHE_DURATION and not cached['data'].get('is_fallback'):
                 return cached['data']
 
         if not self.is_available():

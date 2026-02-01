@@ -249,6 +249,15 @@ def _render_stock_news_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_mo
 def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_mobile: bool):
     """AI 종합 추천 탭"""
 
+    # 캐시 초기화 버튼
+    col_a, col_b = st.columns([3, 1])
+    with col_b:
+        if st.button("🗑️ 캐시 초기화", key="clear_ai_cache"):
+            from data.gemini_analyzer import clear_analysis_cache
+            clear_analysis_cache()
+            st.success("캐시 초기화 완료")
+            st.rerun()
+
     if not analyzer.is_available():
         st.info("💡 Gemini API 키가 없어도 **키워드 기반 분석**은 사용 가능합니다.")
 
