@@ -533,6 +533,7 @@ menu_options = {
     "📂 섹터 분류": "sector",
     "📊 차트 전략": "chart_strategy",
     "📈 백테스트": "backtest",
+    "🤖 AI 분석": "ai_analysis",
     "💹 퀀트 매매": "quant_trading",
     "💼 포트폴리오": "portfolio",
     "⚙️ 설정": "settings"
@@ -649,13 +650,14 @@ if st.session_state.get('mobile_mode', False):
     </div>
     """, unsafe_allow_html=True)
 
-    # 컴팩트 버튼 메뉴 (Streamlit 네이티브) - 6개 메뉴
-    mobile_menu_cols = st.columns(6)
+    # 컴팩트 버튼 메뉴 (Streamlit 네이티브) - 7개 메뉴
+    mobile_menu_cols = st.columns(7)
     mobile_menus = [
         ("🏠", "home", "홈"),
         ("📊", "chart_strategy", "차트"),
         ("🎯", "strategy", "전략"),
         ("📈", "backtest", "백테"),
+        ("🤖", "ai_analysis", "AI"),
         ("💹", "quant_trading", "매매"),
         ("⚙️", "settings", "설정"),
     ]
@@ -692,6 +694,9 @@ elif menu == "📊 차트 전략":
 elif menu == "📈 백테스트":
     from views.backtest import render_backtest
     render_backtest()
+elif menu == "🤖 AI 분석":
+    from views.ai_analysis import render_ai_analysis
+    render_ai_analysis()
 elif menu == "💹 퀀트 매매":
     from views.quant_trading import render_quant_trading
     render_quant_trading()

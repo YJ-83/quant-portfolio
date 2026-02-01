@@ -26,6 +26,11 @@ PyYAML>=6.0.0
 python-dotenv>=1.0.0
 Pillow>=10.0.0
 
+# AI Analysis (Gemini)
+google-generativeai>=0.3.0
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
 # Testing (dev only - can be removed for deployment)
 # pytest>=7.4.0
 # pytest-cov>=4.1.0
