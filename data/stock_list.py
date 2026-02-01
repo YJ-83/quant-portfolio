@@ -15,52 +15,71 @@ _CACHE_DURATION = 3600  # 1시간 캐시
 
 def _fetch_krx_stocks(market: str) -> list:
     """KRX에서 종목 리스트 가져오기 (시가총액 순 정렬)"""
+    stocks = []
+
+    # 방법 1: pykrx 사용 (Streamlit Cloud에서 더 안정적)
     try:
+        from pykrx import stock
         if market == "KOSPI":
-            url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=stockMkt"
-        else:  # KOSDAQ
-            url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=kosdaqMkt"
+            tickers = stock.get_market_ticker_list(market="KOSPI")
+        else:
+            tickers = stock.get_market_ticker_list(market="KOSDAQ")
 
-        df = pd.read_html(url, encoding='euc-kr')[0]
+        for ticker in tickers:
+            name = stock.get_market_ticker_name(ticker)
+            # 스팩, ETF 등 제외
+            if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']):
+                stocks.append((ticker, name))
+    except Exception as e1:
+        print(f"pykrx 종목 조회 실패 ({market}): {e1}")
 
-        # 종목코드를 6자리 문자열로 변환
-        stocks = []
-        for _, row in df.iterrows():
-            code = str(row['종목코드']).zfill(6)
-            name = row['회사명']
-            # 스팩, ETF 등 제외, 종목코드가 숫자로만 구성된 것만 (우선주 등 제외)
-            if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']) and code.isdigit():
-                stocks.append((code, name))
-
-        # 시가총액 대표 종목을 앞으로 정렬
-        priority_kospi = ['005930', '000660', '373220', '207940', '005380', '000270',
-                         '068270', '035420', '006400', '051910', '003670', '105560']
-        priority_kosdaq = ['247540', '086520', '091990', '263750', '293490', '035900',
-                          '352820', '041510', '112040', '196170', '066970', '028300']
-
-        priority = priority_kospi if market == "KOSPI" else priority_kosdaq
-
-        # 우선순위 종목을 앞에, 나머지는 이름순 정렬
-        priority_stocks = []
-        other_stocks = []
-
-        for code, name in stocks:
-            if code in priority:
-                priority_stocks.append((code, name, priority.index(code)))
+        # 방법 2: KRX 직접 조회 (fallback)
+        try:
+            if market == "KOSPI":
+                url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=stockMkt"
             else:
-                other_stocks.append((code, name))
+                url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=kosdaqMkt"
 
-        # 우선순위 종목 정렬
-        priority_stocks.sort(key=lambda x: x[2])
-        priority_stocks = [(code, name) for code, name, _ in priority_stocks]
+            df = pd.read_html(url, encoding='euc-kr')[0]
 
-        # 나머지 이름순 정렬
-        other_stocks.sort(key=lambda x: x[1])
+            for _, row in df.iterrows():
+                code = str(row['종목코드']).zfill(6)
+                name = row['회사명']
+                if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']) and code.isdigit():
+                    stocks.append((code, name))
+        except Exception as e2:
+            print(f"KRX 직접 조회도 실패 ({market}): {e2}")
+            return []
 
-        return priority_stocks + other_stocks
-    except Exception as e:
-        print(f"KRX 종목 조회 실패 ({market}): {e}")
+    if not stocks:
         return []
+
+    # 시가총액 대표 종목을 앞으로 정렬
+    priority_kospi = ['005930', '000660', '373220', '207940', '005380', '000270',
+                     '068270', '035420', '006400', '051910', '003670', '105560']
+    priority_kosdaq = ['247540', '086520', '091990', '263750', '293490', '035900',
+                      '352820', '041510', '112040', '196170', '066970', '028300']
+
+    priority = priority_kospi if market == "KOSPI" else priority_kosdaq
+
+    # 우선순위 종목을 앞에, 나머지는 이름순 정렬
+    priority_stocks = []
+    other_stocks = []
+
+    for code, name in stocks:
+        if code in priority:
+            priority_stocks.append((code, name, priority.index(code)))
+        else:
+            other_stocks.append((code, name))
+
+    # 우선순위 종목 정렬
+    priority_stocks.sort(key=lambda x: x[2])
+    priority_stocks = [(code, name) for code, name, _ in priority_stocks]
+
+    # 나머지 이름순 정렬
+    other_stocks.sort(key=lambda x: x[1])
+
+    return priority_stocks + other_stocks
 
 
 def get_kospi_stocks() -> list:
