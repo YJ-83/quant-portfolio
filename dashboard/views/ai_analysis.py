@@ -5,10 +5,13 @@ Gemini API 기반 주식 분석 + 뉴스 감성 분석
 import streamlit as st
 import pandas as pd
 import numpy as np
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import os
 import sys
 import time
+
+# 한국 시간대
+KST = timezone(timedelta(hours=9))
 
 # 프로젝트 루트를 path에 추가
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -83,7 +86,8 @@ def render_ai_analysis():
         with col2:
             st.info("📰 뉴스 크롤링 준비됨")
         with col3:
-            st.info(f"🕐 {datetime.now().strftime('%H:%M')} 기준")
+            kst_now = datetime.now(KST)
+            st.info(f"🕐 {kst_now.strftime('%H:%M')} 기준")
 
     # 탭 구성
     if is_mobile:
@@ -249,9 +253,14 @@ def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler
                 try:
                     api = get_api_connection()
                     if api:
-                        # 일봉 데이터
-                        df = api.get_stock_price_history(stock_code, period='D', count=60)
+                        # 일봉 데이터 (get_daily_price 사용)
+                        end_date = datetime.now().strftime("%Y%m%d")
+                        start_date = (datetime.now() - timedelta(days=90)).strftime("%Y%m%d")
+                        df = api.get_daily_price(stock_code, start_date=start_date, end_date=end_date, period='D')
                         if df is not None and len(df) > 0:
+                            # 최신 데이터가 맨 앞에 있을 수 있으므로 정렬
+                            if 'date' in df.columns:
+                                df = df.sort_values('date')
                             current_price = float(df.iloc[-1]['close'])
                             prev_price = float(df.iloc[-2]['close']) if len(df) > 1 else current_price
                             price_change = ((current_price - prev_price) / prev_price) * 100
