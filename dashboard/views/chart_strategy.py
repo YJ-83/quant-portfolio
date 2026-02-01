@@ -28,9 +28,12 @@ from dashboard.utils.indicators import (
     calculate_macd,
     calculate_bollinger,
     calculate_volume_ratio,
+    calculate_williams_r,
+    calculate_williams_r_series,
     get_rsi_signal,
     get_macd_signal,
     get_bollinger_signal,
+    get_williams_r_signal,
     calculate_moving_averages,
     detect_box_range,
     detect_box_breakout,
@@ -44,7 +47,8 @@ from dashboard.utils.indicators import (
 # 공통 차트 유틸리티 import (중복 코드 제거)
 from dashboard.utils.chart_utils import (
     render_candlestick_chart,
-    detect_swing_points  # chart_utils로 통합됨
+    detect_swing_points,  # chart_utils로 통합됨
+    render_investor_trend,  # 투자자 매매동향 컴포넌트
 )
 
 # 홈 퀀트분석 함수 import (종목검색 결과에 퀀트분석 표시용)
@@ -4427,6 +4431,9 @@ def _analyze_single_stock(api, stock_code: str):
     </div>
     """, unsafe_allow_html=True)
 
+    # 투자자 매매동향 표시
+    render_investor_trend(api, code, name, days=5, key_prefix=f"inv_{code}")
+
     # 신호 상세 분석
     st.markdown("#### 📋 전략별 분석 결과")
     col1, col2 = st.columns(2)
@@ -4606,11 +4613,13 @@ def _analyze_single_stock(api, stock_code: str):
             macd_val = calculate_macd(data['close'])
             bollinger_val = calculate_bollinger(data['close'])
             volume_ratio_val = calculate_volume_ratio(data['volume'])
+            williams_r_val = calculate_williams_r(data['high'], data['low'], data['close'])
 
             screener_result['rsi'] = round(rsi_val, 2)
             screener_result['macd'] = macd_val
             screener_result['bollinger'] = bollinger_val
             screener_result['volume_ratio'] = round(volume_ratio_val, 2)
+            screener_result['williams_r'] = round(williams_r_val, 2)
         except Exception:
             pass
 

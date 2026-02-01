@@ -205,6 +205,85 @@ def get_bollinger_signal(bb_data: Dict[str, Any]) -> Dict[str, Any]:
         return {'signal': 'neutral', 'strength': '없음', 'message': '중립'}
 
 
+# ========== Williams %R ==========
+
+def calculate_williams_r(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> float:
+    """
+    Williams %R 계산
+    - 0 ~ -100 범위 (전통적 Williams %R)
+    - 0에 가까울수록 과매수, -100에 가까울수록 과매도
+
+    Args:
+        high: 고가 시리즈
+        low: 저가 시리즈
+        close: 종가 시리즈
+        period: 기간 (기본 14일)
+
+    Returns:
+        Williams %R 값 (-100 ~ 0)
+    """
+    if len(close) < period:
+        return -50.0
+
+    highest_high = high.rolling(window=period).max()
+    lowest_low = low.rolling(window=period).min()
+
+    hh = highest_high.iloc[-1]
+    ll = lowest_low.iloc[-1]
+    current_close = close.iloc[-1]
+
+    if hh == ll:
+        return -50.0
+
+    # Williams %R 공식: (최고가 - 종가) / (최고가 - 최저가) * -100
+    williams_r = ((hh - current_close) / (hh - ll)) * -100
+
+    return float(williams_r) if not pd.isna(williams_r) else -50.0
+
+
+def get_williams_r_signal(williams_r: float) -> Dict[str, Any]:
+    """
+    Williams %R 기반 매매 시그널
+
+    Args:
+        williams_r: Williams %R 값 (-100 ~ 0)
+
+    Returns:
+        시그널 정보 dict
+
+    해석:
+        - -100 ~ -80: 과매도 (매수 신호)
+        - -80 ~ -50: 약세
+        - -50 ~ -20: 강세
+        - -20 ~ 0: 과매수 (매도 신호)
+    """
+    if williams_r <= -95:
+        return {'signal': 'strong_buy', 'strength': '강함', 'message': 'Williams %R 극심한 과매도'}
+    elif williams_r <= -80:
+        return {'signal': 'buy', 'strength': '보통', 'message': 'Williams %R 과매도 구간'}
+    elif williams_r >= -5:
+        return {'signal': 'strong_sell', 'strength': '강함', 'message': 'Williams %R 극심한 과매수'}
+    elif williams_r >= -20:
+        return {'signal': 'sell', 'strength': '보통', 'message': 'Williams %R 과매수 구간'}
+    else:
+        return {'signal': 'neutral', 'strength': '없음', 'message': f'중립 ({williams_r:.1f})'}
+
+
+def calculate_williams_r_series(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
+    """
+    Williams %R 시리즈 계산 (차트용)
+
+    Returns:
+        Williams %R 시리즈 (-100 ~ 0)
+    """
+    highest_high = high.rolling(window=period).max()
+    lowest_low = low.rolling(window=period).min()
+
+    williams_r = ((highest_high - close) / (highest_high - lowest_low)) * -100
+
+    return williams_r
+
+
 # ========== 거래량 분석 ==========
 
 def calculate_volume_ratio(volumes: pd.Series, period: int = 20) -> float:

@@ -41,7 +41,7 @@ from dashboard.utils.indicators import (
 )
 
 # 스윙 포인트 감지 함수 import
-from dashboard.utils.chart_utils import detect_swing_points
+from dashboard.utils.chart_utils import detect_swing_points, render_investor_trend
 
 # 이동평균선 옵션
 MA_OPTIONS = {
@@ -397,9 +397,33 @@ def _get_chart_technical_analysis(_api, code: str) -> dict:
             result['macd_color'] = '#888'
             macd_score = 50
 
-        # 종합 차트 점수 (가중치 적용: 이평선 25%, 거래량 25%, RSI 20%, MACD 20%, BB 10%)
-        # MACD 추가로 가중치 재조정
-        result['chart_score'] = (ma_score * 0.25 + vol_score * 0.25 + rsi_score * 0.20 + macd_score * 0.20 + bb_score * 0.10)
+        # 6. Williams %R 분석 (14일) - 81% 승률의 고효율 지표
+        highest_high = df['high'].rolling(window=14).max()
+        lowest_low = df['low'].rolling(window=14).min()
+        williams_r = ((highest_high - df['close']) / (highest_high - lowest_low)) * -100
+        current_williams_r = williams_r.iloc[-1]
+        result['williams_r'] = current_williams_r
+
+        if current_williams_r >= -20:
+            result['williams_r_status'] = '과매수'
+            result['williams_r_color'] = '#FF6B6B'
+            williams_r_score = 30
+        elif current_williams_r >= -50:
+            result['williams_r_status'] = '강세'
+            result['williams_r_color'] = '#38ef7d'
+            williams_r_score = 70
+        elif current_williams_r >= -80:
+            result['williams_r_status'] = '약세'
+            result['williams_r_color'] = '#FFA500'
+            williams_r_score = 40
+        else:
+            result['williams_r_status'] = '과매도'
+            result['williams_r_color'] = '#007AFF'
+            williams_r_score = 65  # 반등 기대
+
+        # 종합 차트 점수 (가중치 적용: 이평선 20%, 거래량 20%, RSI 15%, MACD 15%, BB 10%, Williams %R 20%)
+        # Williams %R 추가 (81% 승률 지표)
+        result['chart_score'] = (ma_score * 0.20 + vol_score * 0.20 + rsi_score * 0.15 + macd_score * 0.15 + bb_score * 0.10 + williams_r_score * 0.20)
 
         return result
 
@@ -629,6 +653,9 @@ def _render_quant_analysis_section(api, info: dict, code: str, stock_name: str):
             bb_color = chart_analysis.get('bb_color', '#888')
             macd_status = chart_analysis.get('macd_status', '-')
             macd_color = chart_analysis.get('macd_color', '#888')
+            williams_r = chart_analysis.get('williams_r', -50)
+            williams_r_status = chart_analysis.get('williams_r_status', '-')
+            williams_r_color = chart_analysis.get('williams_r_color', '#888')
             chart_score = chart_analysis.get('chart_score', 0)
 
             # 등급 결정
@@ -688,8 +715,14 @@ def _render_quant_analysis_section(api, info: dict, code: str, stock_name: str):
                         <span style='font-weight: 600; color: {bb_color}; font-size: 0.85rem;'>{bb_status}</span>
                     </div>
                 </div>
+                <div style='margin-bottom: 0.4rem;'>
+                    <div style='display: flex; justify-content: space-between;'>
+                        <span style='color: #666; font-size: 0.85rem;'>Williams %R</span>
+                        <span style='font-weight: 600; color: {williams_r_color}; font-size: 0.85rem;'>{williams_r:.1f} ({williams_r_status})</span>
+                    </div>
+                </div>
                 <div style='margin-top: 0.75rem; padding-top: 0.5rem; border-top: 1px dashed #e0e0e0;'>
-                    <span style='color: #888; font-size: 0.8rem;'>💡 기술분석: 이평선, 거래량, RSI, MACD, BB</span>
+                    <span style='color: #888; font-size: 0.8rem;'>💡 기술분석: 이평선, 거래량, RSI, MACD, BB, Williams %R</span>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -1171,6 +1204,11 @@ def _render_stock_detail_section(api, code: str):
     # info가 없어도 realtime이 있으면 계속 진행
     if not info:
         info = {}
+
+    # 투자자별 매매동향 표시 (개인/기관/외국인)
+    st.markdown("---")
+    st.markdown("#### 📊 투자자별 매매동향")
+    render_investor_trend(api, code, stock_name, days=5, key_prefix=f"home_inv_{code}")
 
     # 마법공식 & 멀티팩터 분석 섹션
     _render_quant_analysis_section(api, info, code, stock_name)

@@ -23,6 +23,13 @@ def get_api_connection(connect: bool = True, verbose: bool = False):
     Returns:
         KoreaInvestmentAPI 인스턴스 또는 None
     """
+    # 세션에 저장된 API가 최신 메서드를 가지고 있는지 확인
+    if API_SESSION_KEY in st.session_state:
+        cached_api = st.session_state[API_SESSION_KEY]
+        # 새로 추가된 메서드가 없으면 세션 삭제 후 재생성
+        if cached_api and not hasattr(cached_api, 'get_investor_trading'):
+            del st.session_state[API_SESSION_KEY]
+
     if API_SESSION_KEY not in st.session_state:
         try:
             from data.kis_api import KoreaInvestmentAPI

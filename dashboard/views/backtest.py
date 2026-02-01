@@ -993,13 +993,66 @@ def _render_chart_strategy_simulation():
                 key="sim_strategy_type"
             )
 
-        # 전략 메모 (상세 설명)
-        strategy_memo = st.text_area(
-            "📝 투자 메모 (상세 기록)",
-            placeholder="예: 2024년 실적 기대감, 52주 신고가 근접, 외국인 순매수 지속 등\n\n매수 근거와 기대하는 시나리오를 자세히 기록하세요.",
-            height=100,
-            key="sim_strategy_memo"
+        # 투자 근거 태그 선택 (다중 선택)
+        st.markdown("##### 📝 투자 근거 선택")
+
+        # 태그 그룹 정의
+        tag_groups = {
+            "📊 기술적 분석": [
+                "이평선 정배열", "이평선 역배열", "골든크로스", "데드크로스",
+                "거래량 증가", "거래량 감소", "RSI 과매도", "RSI 과매수",
+                "MACD 상승", "MACD 하락", "BB 상단", "BB 하단",
+                "추세선 지지", "추세선 저항", "피보나치 지지", "피보나치 저항",
+                "R:R 1:1 이상", "R:R 1:2 이상", "R:R 1:3 이상"
+            ],
+            "👥 수급 분석": [
+                "기관 순매수", "기관 순매도", "외국인 순매수", "외국인 순매도",
+                "개인 순매수", "개인 순매도", "기관+외국인 동반 매수"
+            ],
+            "💰 가치 분석": [
+                "저PER", "저PBR", "고ROE", "저평가",
+                "고배당", "실적 개선", "실적 악화"
+            ],
+            "📰 이슈/이벤트": [
+                "실적 발표 기대", "신사업 진출", "M&A 기대",
+                "테마주", "정책 수혜", "계절성"
+            ]
+        }
+
+        selected_tags = []
+
+        # 2열로 태그 그룹 표시
+        col1, col2 = st.columns(2)
+        group_names = list(tag_groups.keys())
+
+        for i, group_name in enumerate(group_names):
+            with col1 if i % 2 == 0 else col2:
+                with st.expander(group_name, expanded=(i < 2)):
+                    tags = tag_groups[group_name]
+                    group_selected = st.multiselect(
+                        f"{group_name} 태그",
+                        options=tags,
+                        default=[],
+                        key=f"memo_tags_{i}",
+                        label_visibility="collapsed"
+                    )
+                    selected_tags.extend(group_selected)
+
+        # 추가 메모 (자유 입력)
+        additional_memo = st.text_input(
+            "추가 메모 (선택)",
+            placeholder="기타 특이사항 입력",
+            key="sim_additional_memo"
         )
+
+        # 선택된 태그들을 strategy_memo로 조합
+        strategy_memo = ", ".join(selected_tags)
+        if additional_memo:
+            strategy_memo = f"{strategy_memo}, {additional_memo}" if strategy_memo else additional_memo
+
+        # 선택된 태그 미리보기
+        if selected_tags:
+            st.caption(f"선택됨: {', '.join(selected_tags)}")
 
         # 전략 유형이 "기타 (직접 입력)"인 경우 추가 입력
         if strategy_type == "기타 (직접 입력)":
@@ -1063,7 +1116,8 @@ def _render_chart_strategy_simulation():
                     'target_price': target_price if target_price > 0 else None,
                     'stop_loss': stop_loss if stop_loss > 0 else None,
                     'strategy_type': final_strategy_type,  # 전략 유형 추가
-                    'strategy_memo': strategy_memo
+                    'strategy_memo': strategy_memo,
+                    'investment_tags': selected_tags  # 투자 근거 태그 (통계용)
                 }
 
                 # 모의투자 등록
@@ -1243,7 +1297,7 @@ def _render_simulation_analysis():
         pending = [h for h in history if h.get('status') == 'pending']
 
         if pending:
-            for idx, sim in enumerate(pending[:10]):
+            for idx, sim in enumerate(pending):
                 stock = sim.get('stock', {})
                 sim_id = sim.get('id', idx)
                 end_date = datetime.fromisoformat(sim['end_date'])
@@ -1347,9 +1401,9 @@ def _render_simulation_analysis():
                                 key=f"sell_price_{sim_id}"
                             )
                         with sell_col2:
-                            # 매도 시 예상 수익률 표시
-                            expected_return = ((sell_price - avg_price) / avg_price) * 100 if avg_price > 0 else 0
-                            expected_profit = (sell_price - avg_price) * quantity
+                            # 매도 시 예상 수익률 표시 (buy_price = 평균단가)
+                            expected_return = ((sell_price - buy_price) / buy_price) * 100 if buy_price > 0 else 0
+                            expected_profit = (sell_price - buy_price) * quantity
                             exp_color = "#11998e" if expected_return >= 0 else "#f5576c"
                             exp_sign = "+" if expected_return >= 0 else ""
                             st.markdown(f"""

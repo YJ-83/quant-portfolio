@@ -988,6 +988,141 @@ class KoreaInvestmentAPI:
 
         return result
 
+    def get_investor_trading(self, code: str, period: str = "D", count: int = 7) -> Optional[pd.DataFrame]:
+        """
+        투자자별 매매동향 조회 (개인/기관/외국인)
+
+        Args:
+            code: 종목코드 (6자리)
+            period: 기간구분 (D: 일, W: 주, M: 월)
+            count: 조회할 데이터 수 (기본 7일)
+
+        Returns:
+            DataFrame with columns: date, individual, institution, foreign, total
+            - 양수: 순매수, 음수: 순매도 (단위: 주)
+        """
+        try:
+            # 네이버 금융에서 투자자별 매매동향 조회
+            import requests
+            from bs4 import BeautifulSoup
+
+            url = f"https://finance.naver.com/item/frgn.naver?code={code}"
+            headers = {
+                'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'
+            }
+
+            response = requests.get(url, headers=headers, timeout=5)
+            response.encoding = 'euc-kr'
+            soup = BeautifulSoup(response.text, 'html.parser')
+
+            # 테이블 파싱 - 두 번째 type2 테이블이 투자자별 매매동향
+            tables = soup.select("table.type2")
+            if len(tables) < 2:
+                return None
+            table = tables[1]  # 두 번째 테이블
+
+            rows = table.select("tr")
+            data = []
+
+            for row in rows[2:]:  # 헤더 2줄 스킵 (날짜/종가/전일비 + 순매매량/보유주수)
+                cols = row.select("td")
+                if len(cols) >= 7:
+                    try:
+                        date_text = cols[0].text.strip()
+                        if not date_text or date_text == '-' or not date_text[0].isdigit():
+                            continue
+
+                        # 가격 정보 (col 1: 종가)
+                        close_text = cols[1].text.strip().replace(",", "")
+                        close_price = int(close_text) if close_text.isdigit() else 0
+
+                        # 전일대비 (col 2: "상승30" 또는 "하락30" 형태)
+                        change_text = cols[2].text.strip()
+                        change = 0
+                        if '상승' in change_text:
+                            change = int(change_text.replace('상승', '').replace(',', '') or 0)
+                        elif '하락' in change_text:
+                            change = -int(change_text.replace('하락', '').replace(',', '') or 0)
+
+                        # 거래량 (col 4)
+                        volume_text = cols[4].text.strip().replace(",", "")
+                        total_volume = int(volume_text) if volume_text.isdigit() else 0
+
+                        # 기관 순매매 (col 5)
+                        inst_text = cols[5].text.strip().replace(",", "").replace("+", "")
+                        institution = int(inst_text) if inst_text.lstrip('-').isdigit() else 0
+
+                        # 외국인 순매매 (col 6)
+                        frgn_text = cols[6].text.strip().replace(",", "").replace("+", "")
+                        foreign = int(frgn_text) if frgn_text.lstrip('-').isdigit() else 0
+
+                        # 개인 = -(기관 + 외국인) 근사치
+                        individual = -(institution + foreign)
+
+                        data.append({
+                            'date': date_text,
+                            'close': close_price,
+                            'change': change,
+                            'volume': total_volume,
+                            'institution': institution,
+                            'foreign': foreign,
+                            'individual': individual
+                        })
+
+                        if len(data) >= count:
+                            break
+                    except (ValueError, IndexError) as e:
+                        continue
+
+            if not data:
+                return None
+
+            df = pd.DataFrame(data)
+            return df
+
+        except Exception as e:
+            print(f"투자자 매매동향 조회 오류: {e}")
+            return None
+
+    def get_investor_summary(self, code: str, days: int = 5) -> Optional[dict]:
+        """
+        투자자별 매매동향 요약 (최근 N일 합계)
+
+        Args:
+            code: 종목코드
+            days: 집계 기간 (기본 5일)
+
+        Returns:
+            요약 딕셔너리: individual_sum, institution_sum, foreign_sum, trend
+        """
+        df = self.get_investor_trading(code, count=days)
+        if df is None or df.empty:
+            return None
+
+        result = {
+            'individual_sum': int(df['individual'].sum()),
+            'institution_sum': int(df['institution'].sum()),
+            'foreign_sum': int(df['foreign'].sum()),
+            'individual_avg': int(df['individual'].mean()),
+            'institution_avg': int(df['institution'].mean()),
+            'foreign_avg': int(df['foreign'].mean()),
+            'days': len(df)
+        }
+
+        # 추세 판단 (외국인+기관 순매수가 양수면 '매집', 음수면 '매도')
+        big_player_sum = result['institution_sum'] + result['foreign_sum']
+        if big_player_sum > 0:
+            result['trend'] = '매집'
+            result['trend_color'] = '#11998e'
+        elif big_player_sum < 0:
+            result['trend'] = '매도'
+            result['trend_color'] = '#f5576c'
+        else:
+            result['trend'] = '중립'
+            result['trend_color'] = '#888'
+
+        return result
+
     def get_balance(self) -> Optional[dict]:
         """
         계좌 잔고 조회

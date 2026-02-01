@@ -28,9 +28,11 @@ from dashboard.utils.indicators import (
     calculate_macd,
     calculate_bollinger,
     calculate_volume_ratio,
+    calculate_williams_r,
     get_rsi_signal,
     get_macd_signal,
     get_bollinger_signal,
+    get_williams_r_signal,
     get_volume_signal,
     calculate_moving_averages,
     check_ma_alignment,
@@ -53,7 +55,7 @@ from dashboard.utils.indicators import (
 )
 
 # 공통 차트 유틸리티 import (중복 코드 제거)
-from dashboard.utils.chart_utils import render_simple_chart, detect_swing_points
+from dashboard.utils.chart_utils import render_simple_chart, detect_swing_points, render_investor_trend
 
 
 # ========== 업종 정보 캐시 및 헬퍼 ==========
@@ -315,9 +317,22 @@ def _render_condition_screener(api):
 
     st.markdown("---")
 
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
 
     with col1:
+        st.markdown("**Williams %R (81% 승률)**")
+        use_williams = st.checkbox("Williams %R 조건 사용", key="use_williams")
+        if use_williams:
+            williams_condition = st.selectbox(
+                "조건",
+                ["과매도 (< -80)", "과매수 (> -20)", "과매도 반등 (-80 상향돌파)", "과매수 하락 (-20 하향돌파)", "커스텀"],
+                key="williams_condition"
+            )
+            if williams_condition == "커스텀":
+                williams_min = st.number_input("Williams %R 최소", -100, 0, -80, key="williams_min")
+                williams_max = st.number_input("Williams %R 최대", -100, 0, -20, key="williams_max")
+
+    with col2:
         st.markdown("**거래량**")
         use_volume = st.checkbox("거래량 조건 사용", key="use_volume")
         if use_volume:
@@ -329,7 +344,7 @@ def _render_condition_screener(api):
             if vol_condition == "커스텀":
                 vol_ratio = st.number_input("20일 평균 대비 비율", 0.1, 10.0, 2.0, key="vol_ratio")
 
-    with col2:
+    with col3:
         st.markdown("**이동평균선**")
         use_ma = st.checkbox("이동평균선 조건 사용", key="use_ma")
         if use_ma:
@@ -339,7 +354,7 @@ def _render_condition_screener(api):
                 key="ma_condition"
             )
 
-    with col3:
+    with col4:
         st.markdown("**가격 변동**")
         use_price = st.checkbox("가격 변동 조건 사용", key="use_price")
         if use_price:
@@ -1215,6 +1230,14 @@ def _display_single_stock_analysis(result: dict):
     html_content = f"<div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1.5rem; border-radius: 12px; margin: 1rem 0; border: 1px solid rgba(255,255,255,0.1);'><div style='display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap;'><div><h3 style='color: white; margin: 0; font-weight: 700;'>📈 {name} ({code})</h3><div style='margin-top: 0.5rem;'>{sector_text}</div></div><div style='text-align: right;'><p style='color: white; font-size: 1.5rem; margin: 0; font-weight: 600;'>{price:,.0f}원 <span style='font-size: 1rem; color: {change_color}; margin-left: 0.5rem;'>{change_icon} {abs(change):.2f}%</span></p>{market_cap_text}</div></div>{description_text}</div>"
     st.markdown(html_content, unsafe_allow_html=True)
 
+    # 투자자별 매매동향 표시
+    try:
+        api = get_api_connection(verbose=False)
+        if api:
+            render_investor_trend(api, code, name, days=5, key_prefix=f"scr_inv_{code}")
+    except:
+        pass
+
     # 차트 표시 (매물대 포함)
     try:
         from dashboard.utils.api_helper import get_api_connection
@@ -1260,7 +1283,7 @@ def _display_single_stock_analysis(result: dict):
 
 def _display_single_stock_indicators(result: dict):
     """기술적 지표 표시 (검정색 기반 카드)"""
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     # RSI
     with col1:
@@ -1271,11 +1294,10 @@ def _display_single_stock_indicators(result: dict):
         <div style='background: linear-gradient(135deg, #2d2d3a 0%, #1e1e2e 100%);
                     padding: 1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);'>
             <p style='color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0;'>RSI (14)</p>
-            <p style='color: white; font-size: 1.75rem; font-weight: 700; margin: 0.25rem 0;'>{rsi:.1f}</p>
-            <p style='color: {rsi_color}; font-size: 0.85rem; margin: 0;'>↑ {rsi_status}</p>
+            <p style='color: white; font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;'>{rsi:.1f}</p>
+            <p style='color: {rsi_color}; font-size: 0.8rem; margin: 0;'>● {rsi_status}</p>
         </div>
         """, unsafe_allow_html=True)
-        st.caption(f"● {rsi_status} 구간")
 
     # MACD
     with col2:
@@ -1289,11 +1311,10 @@ def _display_single_stock_indicators(result: dict):
         <div style='background: linear-gradient(135deg, #2d2d3a 0%, #1e1e2e 100%);
                     padding: 1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);'>
             <p style='color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0;'>MACD</p>
-            <p style='color: white; font-size: 1.75rem; font-weight: 700; margin: 0.25rem 0;'>{macd_value:.2f}</p>
-            <p style='color: {cross_color}; font-size: 0.85rem; margin: 0;'>↑ 시그널: {macd_signal:.2f}</p>
+            <p style='color: white; font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;'>{macd_value:.1f}</p>
+            <p style='color: {cross_color}; font-size: 0.8rem; margin: 0;'>● {cross_text}</p>
         </div>
         """, unsafe_allow_html=True)
-        st.caption(f"크로스: {cross_text}")
 
     # 볼린저밴드
     with col3:
@@ -1305,14 +1326,37 @@ def _display_single_stock_indicators(result: dict):
         <div style='background: linear-gradient(135deg, #2d2d3a 0%, #1e1e2e 100%);
                     padding: 1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);'>
             <p style='color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0;'>볼린저 위치</p>
-            <p style='color: white; font-size: 1.75rem; font-weight: 700; margin: 0.25rem 0;'>{bb_pos*100:.0f}%</p>
-            <p style='color: {bb_color}; font-size: 0.85rem; margin: 0;'>↑ {bb_status}</p>
+            <p style='color: white; font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;'>{bb_pos*100:.0f}%</p>
+            <p style='color: {bb_color}; font-size: 0.8rem; margin: 0;'>● {bb_status}</p>
         </div>
         """, unsafe_allow_html=True)
-        st.caption(f"상단: {bb.get('upper', 0):,.0f}원 / 하단: {bb.get('lower', 0):,.0f}원")
+
+    # Williams %R (81% 승률 지표)
+    with col4:
+        williams_r = result.get('williams_r', -50)
+        if williams_r >= -20:
+            wr_status = "과매수"
+            wr_color = "#ff4757"
+        elif williams_r <= -80:
+            wr_status = "과매도"
+            wr_color = "#2ed573"
+        elif williams_r >= -50:
+            wr_status = "강세"
+            wr_color = "#38ef7d"
+        else:
+            wr_status = "약세"
+            wr_color = "#f39c12"
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, #2d2d3a 0%, #1e1e2e 100%);
+                    padding: 1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);'>
+            <p style='color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0;'>Williams %R</p>
+            <p style='color: white; font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;'>{williams_r:.1f}</p>
+            <p style='color: {wr_color}; font-size: 0.8rem; margin: 0;'>● {wr_status}</p>
+        </div>
+        """, unsafe_allow_html=True)
 
     # 거래량
-    with col4:
+    with col5:
         vol_ratio = result.get('volume_ratio', 1)
         vol_status = "급증" if vol_ratio >= 2 else "증가" if vol_ratio >= 1.5 else "보통"
         vol_color = "#ff4757" if vol_ratio >= 2 else "#f39c12" if vol_ratio >= 1.5 else "#a4b0be"
@@ -1320,11 +1364,10 @@ def _display_single_stock_indicators(result: dict):
         <div style='background: linear-gradient(135deg, #2d2d3a 0%, #1e1e2e 100%);
                     padding: 1rem; border-radius: 10px; border: 1px solid rgba(255,255,255,0.08);'>
             <p style='color: rgba(255,255,255,0.6); font-size: 0.85rem; margin: 0;'>거래량 비율</p>
-            <p style='color: white; font-size: 1.75rem; font-weight: 700; margin: 0.25rem 0;'>{vol_ratio:.1f}배</p>
-            <p style='color: {vol_color}; font-size: 0.85rem; margin: 0;'>↑ {vol_status}</p>
+            <p style='color: white; font-size: 1.5rem; font-weight: 700; margin: 0.25rem 0;'>{vol_ratio:.1f}배</p>
+            <p style='color: {vol_color}; font-size: 0.8rem; margin: 0;'>● {vol_status}</p>
         </div>
         """, unsafe_allow_html=True)
-        st.caption("20일 평균 대비")
 
 
 def _display_single_stock_swing(result: dict):
@@ -2198,6 +2241,23 @@ def _collect_conditions():
         elif bb_cond == "상단 터치 (매도)":
             conditions['bb_upper_touch'] = True
 
+    # Williams %R 조건 (81% 승률 지표)
+    if st.session_state.get('use_williams'):
+        williams_cond = st.session_state.get('williams_condition', '')
+        if williams_cond == "과매도 (< -80)":
+            conditions['williams_r'] = {'min': -100, 'max': -80}
+        elif williams_cond == "과매수 (> -20)":
+            conditions['williams_r'] = {'min': -20, 'max': 0}
+        elif williams_cond == "과매도 반등 (-80 상향돌파)":
+            conditions['williams_r_crossover'] = -80
+        elif williams_cond == "과매수 하락 (-20 하향돌파)":
+            conditions['williams_r_crossunder'] = -20
+        elif williams_cond == "커스텀":
+            conditions['williams_r'] = {
+                'min': st.session_state.get('williams_min', -100),
+                'max': st.session_state.get('williams_max', 0)
+            }
+
     # 거래량 조건
     if st.session_state.get('use_volume'):
         vol_cond = st.session_state.get('vol_condition', '')
@@ -2296,12 +2356,15 @@ def _run_screener(api, conditions: dict, market: str, max_results: int) -> list:
 
             # 기술적 지표 계산
             close = df['close']
+            high = df['high']
+            low = df['low']
             volume = df['volume']
 
             rsi = calculate_rsi(close)
             macd = calculate_macd(close)
             bollinger = calculate_bollinger(close)
             volume_ratio = calculate_volume_ratio(volume)
+            williams_r = calculate_williams_r(high, low, close)
 
             # 가격 변화
             current_price = close.iloc[-1]
@@ -2367,6 +2430,33 @@ def _run_screener(api, conditions: dict, market: str, max_results: int) -> list:
                     match = False
                 else:
                     matched_signals.append("볼린저밴드 상단")
+
+            # Williams %R 조건 (81% 승률 지표)
+            if 'williams_r' in conditions:
+                if not (conditions['williams_r']['min'] <= williams_r <= conditions['williams_r']['max']):
+                    match = False
+                else:
+                    if williams_r <= -80:
+                        matched_signals.append("Williams %R 과매도")
+                    elif williams_r >= -20:
+                        matched_signals.append("Williams %R 과매수")
+                    else:
+                        matched_signals.append(f"Williams %R {williams_r:.1f}")
+
+            # Williams %R 크로스오버/크로스언더
+            if 'williams_r_crossover' in conditions and len(df) >= 2:
+                prev_williams = calculate_williams_r(high.iloc[:-1], low.iloc[:-1], close.iloc[:-1])
+                if not (prev_williams < conditions['williams_r_crossover'] <= williams_r):
+                    match = False
+                else:
+                    matched_signals.append(f"Williams %R {conditions['williams_r_crossover']} 상향돌파")
+
+            if 'williams_r_crossunder' in conditions and len(df) >= 2:
+                prev_williams = calculate_williams_r(high.iloc[:-1], low.iloc[:-1], close.iloc[:-1])
+                if not (prev_williams > conditions['williams_r_crossunder'] >= williams_r):
+                    match = False
+                else:
+                    matched_signals.append(f"Williams %R {conditions['williams_r_crossunder']} 하향돌파")
 
             # 거래량 조건
             if 'volume_ratio' in conditions:

@@ -607,3 +607,163 @@ def render_simple_chart(
 
     except Exception as e:
         st.error(f"차트 로드 오류: {e}")
+
+
+# ========== 투자자 매매동향 컴포넌트 ==========
+
+def render_investor_trend(api, code: str, name: str = "", days: int = 5, key_prefix: str = "inv") -> None:
+    """
+    투자자별 매매동향 표시 컴포넌트 (개인/기관/외국인) - 일별 표시
+
+    Args:
+        api: KIS API 인스턴스
+        code: 종목코드
+        name: 종목명 (옵션)
+        days: 조회 기간 (기본 5일)
+        key_prefix: 위젯 키 접두어
+    """
+    # 기본 검증
+    if api is None:
+        st.info("API 연결이 필요합니다.")
+        return
+
+    # API에 get_investor_trading 메서드가 있는지 확인
+    if not hasattr(api, 'get_investor_trading'):
+        # 세션 API 객체가 오래된 경우 - 자동 갱신 시도
+        try:
+            from data.kis_api import KoreaInvestmentAPI
+            new_api = KoreaInvestmentAPI()
+            if new_api.connect():
+                st.session_state['kis_api'] = new_api
+                api = new_api
+            else:
+                st.info("API 재연결이 필요합니다. 페이지를 새로고침해주세요.")
+                return
+        except Exception:
+            st.info("API 초기화 실패")
+            return
+
+    try:
+        # 일별 투자자 동향 조회
+        df = api.get_investor_trading(code, count=days)
+
+        if df is None or df.empty:
+            st.caption("투자자 동향 데이터가 없습니다.")
+            return
+
+        # 모바일 대응
+        mobile_mode = is_mobile()
+
+        if mobile_mode:
+            _render_investor_daily_compact(df, key_prefix)
+        else:
+            _render_investor_daily_full(df, key_prefix)
+
+    except Exception as e:
+        st.caption(f"데이터 조회 중 오류: {str(e)[:30]}")
+
+
+def _render_investor_daily_compact(df, key_prefix: str) -> None:
+    """투자자 동향 일별 컴팩트 표시 (모바일용)"""
+    def format_num(n):
+        if abs(n) >= 1_000_000:
+            return f"{n/1_000_000:+.1f}M"
+        elif abs(n) >= 1_000:
+            return f"{n/1_000:+.1f}K"
+        else:
+            return f"{n:+,}"
+
+    def get_color(n):
+        return "#11998e" if n > 0 else "#f5576c" if n < 0 else "#888"
+
+    rows_html = ""
+    for _, row in df.iterrows():
+        date_str = row['date'].replace('2026.', '')  # 연도 제거
+        inst = row['institution']
+        frgn = row['foreign']
+
+        rows_html += f"""
+        <div style='display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.1);'>
+            <span style='color: #888; font-size: 0.75rem;'>{date_str}</span>
+            <span style='color: {get_color(inst)}; font-size: 0.75rem;'>기관 {format_num(inst)}</span>
+            <span style='color: {get_color(frgn)}; font-size: 0.75rem;'>외인 {format_num(frgn)}</span>
+        </div>
+        """
+
+    st.markdown(f"""
+    <div style='background: rgba(0,0,0,0.2); border-radius: 8px; padding: 8px; margin: 4px 0;'>
+        <div style='color: #aaa; font-size: 0.75rem; margin-bottom: 4px;'>📊 투자자 동향</div>
+        {rows_html}
+    </div>
+    """, unsafe_allow_html=True)
+
+
+def _render_investor_daily_full(df, key_prefix: str) -> None:
+    """투자자 동향 일별 전체 표시 (데스크탑용) - Streamlit 네이티브 사용"""
+    def format_num(n):
+        if abs(n) >= 1_000_000:
+            return f"{n/1_000_000:+.1f}M"
+        elif abs(n) >= 1_000:
+            return f"{n/1_000:+,.0f}K"
+        else:
+            return f"{n:+,}"
+
+    def get_color(n):
+        return "🟢" if n > 0 else "🔴" if n < 0 else "⚪"
+
+    # Streamlit 컬럼으로 헤더 표시
+    cols = st.columns([1, 1.2, 1.2, 1.2])
+    cols[0].markdown("**날짜**")
+    cols[1].markdown("**👤 개인**")
+    cols[2].markdown("**🏢 기관**")
+    cols[3].markdown("**🌍 외국인**")
+
+    # 데이터 행 표시
+    for _, row in df.iterrows():
+        date_str = row['date'].replace('2026.', '').replace('2025.', '')
+        ind = row['individual']
+        inst = row['institution']
+        frgn = row['foreign']
+
+        cols = st.columns([1, 1.2, 1.2, 1.2])
+        cols[0].caption(date_str)
+        cols[1].markdown(f"{get_color(ind)} {format_num(ind)}")
+        cols[2].markdown(f"{get_color(inst)} {format_num(inst)}")
+        cols[3].markdown(f"{get_color(frgn)} {format_num(frgn)}")
+
+
+def render_investor_badge(api, code: str, key_prefix: str = "badge") -> None:
+    """
+    투자자 동향 인라인 배지 (카드 내 표시용)
+
+    Args:
+        api: KIS API 인스턴스
+        code: 종목코드
+        key_prefix: 위젯 키 접두어
+    """
+    try:
+        summary = api.get_investor_summary(code, days=5)
+        if not summary:
+            return
+
+        trend = summary.get('trend', '')
+        trend_color = summary.get('trend_color', '#888')
+        frgn = summary.get('foreign_sum', 0)
+        inst = summary.get('institution_sum', 0)
+
+        # 간단한 배지
+        frgn_sign = "+" if frgn > 0 else ""
+        inst_sign = "+" if inst > 0 else ""
+
+        st.markdown(f"""
+        <span style='background: {trend_color}20; color: {trend_color};
+                     padding: 2px 6px; border-radius: 4px; font-size: 0.75rem; margin-right: 4px;'>
+            {trend}
+        </span>
+        <span style='color: #888; font-size: 0.7rem;'>
+            외인 {frgn_sign}{frgn/1000:.0f}K | 기관 {inst_sign}{inst/1000:.0f}K
+        </span>
+        """, unsafe_allow_html=True)
+
+    except:
+        pass

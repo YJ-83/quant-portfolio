@@ -33,7 +33,7 @@
       "target_price": 45045,
       "stop_loss": 40755,
       "strategy_memo": "",
-      "current_price_now": 55100.0
+      "current_price_now": 57200.0
     },
     "holding_days": 30,
     "start_date": "2026-01-22T13:33:57.512726",
@@ -55,7 +55,7 @@
       "target_price": 1655,
       "stop_loss": 1498,
       "strategy_memo": "",
-      "current_price_now": 1641.0
+      "current_price_now": 1582.0
     },
     "holding_days": 10,
     "start_date": "2026-01-22T13:45:40.188271",
@@ -86,7 +86,7 @@
       "stop_loss": 3762,
       "strategy_type": "120일선 돌파",
       "strategy_memo": "120일선 지지 ",
-      "current_price_now": 3995.0
+      "current_price_now": 4035.0
     },
     "holding_days": 10,
     "start_date": "2026-01-24T10:11:52.192745",
@@ -109,15 +109,16 @@
       "stop_loss": 36385,
       "strategy_type": "선택 안함",
       "strategy_memo": "바닥 반등 ",
-      "current_price_now": 41600.0
+      "current_price_now": 40600.0
     },
     "holding_days": 7,
     "start_date": "2026-01-25T23:09:47.911314",
     "end_date": "2026-02-01T23:09:47.911314",
-    "status": "pending",
-    "result_return": null,
-    "result_profit": null,
-    "exit_price": null
+    "status": "completed",
+    "result_return": 6.005221932114883,
+    "result_profit": 230000,
+    "exit_price": 40600,
+    "exit_date": "2026-01-30T21:03:01.186121"
   },
   {
     "id": "95326c06",
@@ -132,7 +133,7 @@
       "stop_loss": 28452,
       "strategy_type": "선택 안함",
       "strategy_memo": "헤드엔솔더 통과 및 52주 신고가 정배열",
-      "current_price_now": 29700.0
+      "current_price_now": 30500.0
     },
     "holding_days": 7,
     "start_date": "2026-01-27T23:05:32.444302",
@@ -155,15 +156,15 @@
       "stop_loss": 23370,
       "strategy_type": "선택 안함",
       "strategy_memo": "신고가 이후 눌림 ",
-      "current_price_now": 25350.0
+      "current_price_now": 25950.0
     },
     "holding_days": 3,
     "start_date": "2026-01-27T23:14:50.178885",
     "end_date": "2026-01-30T23:14:50.178885",
-    "status": "pending",
-    "result_return": null,
-    "result_profit": null,
-    "exit_price": null
+    "status": "completed",
+    "result_return": 5.487804878048781,
+    "result_profit": 135000.0,
+    "exit_price": 25950.0
   },
   {
     "id": "a5643327",
@@ -178,15 +179,15 @@
       "stop_loss": 111150,
       "strategy_type": "선택 안함",
       "strategy_memo": "스윙매매 바닥 및 헤드앤솔드 통과 ",
-      "current_price_now": 116900.0
+      "current_price_now": 121400.0
     },
     "holding_days": 3,
     "start_date": "2026-01-27T23:25:06.375569",
     "end_date": "2026-01-30T23:25:06.375569",
-    "status": "pending",
-    "result_return": null,
-    "result_profit": null,
-    "exit_price": null
+    "status": "completed",
+    "result_return": 3.7606837606837606,
+    "result_profit": 440000.0,
+    "exit_price": 121400.0
   },
   {
     "id": "dec029f0",
@@ -201,15 +202,15 @@
       "stop_loss": 15504,
       "strategy_type": "선택 안함",
       "strategy_memo": "넥라인 돌파 예상 (스윙주추천)",
-      "current_price_now": 17200.0
+      "current_price_now": 17760.0
     },
     "holding_days": 3,
     "start_date": "2026-01-27T23:28:17.559699",
     "end_date": "2026-01-30T23:28:17.559699",
-    "status": "pending",
-    "result_return": null,
-    "result_profit": null,
-    "exit_price": null
+    "status": "completed",
+    "result_return": 8.823529411764707,
+    "result_profit": 288000.0,
+    "exit_price": 17760.0
   },
   {
     "id": "fc4013dc",
@@ -223,7 +224,8 @@
       "target_price": 115185,
       "stop_loss": 104215,
       "strategy_type": "선택 안함",
-      "strategy_memo": "저점 반등 및 이동평균선 정배열 "
+      "strategy_memo": "저점 반등 및 이동평균선 정배열 ",
+      "current_price_now": 108000.0
     },
     "holding_days": 10,
     "start_date": "2026-01-28T20:17:11.560508",
@@ -245,7 +247,8 @@
       "target_price": 8767,
       "stop_loss": 7932,
       "strategy_type": "선택 안함",
-      "strategy_memo": "이평선 정배열 진행중 바닥 이후 상승 "
+      "strategy_memo": "이평선 정배열 진행중 바닥 이후 상승 ",
+      "current_price_now": 8240.0
     },
     "holding_days": 7,
     "start_date": "2026-01-28T21:03:40.353514",
@@ -267,7 +270,8 @@
       "target_price": 57435,
       "stop_loss": 51965,
       "strategy_type": "선택 안함",
-      "strategy_memo": ""
+      "strategy_memo": "",
+      "current_price_now": 54700.0
     },
     "holding_days": 10,
     "start_date": "2026-01-28T21:23:45.947858",
@@ -278,22 +282,124 @@
     "exit_price": null
   },
   {
-    "id": "1a520d87",
+    "id": "5b70e55b",
     "stock": {
-      "code": "105560",
-      "name": "KB금융",
-      "buy_price": 54700,
-      "quantity": 100,
-      "total_amount": 5470000,
-      "current_price": 137900.0,
-      "target_price": 57435,
-      "stop_loss": 51965,
+      "code": "147830",
+      "name": "제룡산업",
+      "buy_price": 7130,
+      "quantity": 1000,
+      "total_amount": 7130000,
+      "current_price": 7130.0,
+      "target_price": 7486,
+      "stop_loss": 6773,
       "strategy_type": "선택 안함",
-      "strategy_memo": ""
+      "strategy_memo": "",
+      "current_price_now": 7280.0
     },
-    "holding_days": 10,
-    "start_date": "2026-01-28T21:24:11.395842",
-    "end_date": "2026-02-07T21:24:11.395842",
+    "holding_days": 7,
+    "start_date": "2026-01-29T08:42:38.821312",
+    "end_date": "2026-02-05T08:42:38.821312",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "6180d3f2",
+    "stock": {
+      "code": "025900",
+      "name": "동화기업",
+      "buy_price": 10740,
+      "quantity": 500,
+      "total_amount": 5370000,
+      "current_price": 10740.0,
+      "target_price": 11277,
+      "stop_loss": 10203,
+      "strategy_type": "선택 안함",
+      "strategy_memo": "외국인 지속 매수 및 준정배열 MACD 상승, RR 비율",
+      "current_price_now": 10740.0
+    },
+    "holding_days": 3,
+    "start_date": "2026-02-01T09:19:29.600137",
+    "end_date": "2026-02-04T09:19:29.600137",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "cb468ae4",
+    "stock": {
+      "code": "079370",
+      "name": "제우스",
+      "buy_price": 19710,
+      "quantity": 500,
+      "total_amount": 9855000,
+      "current_price": 19710.0,
+      "target_price": 20695,
+      "stop_loss": 18724,
+      "strategy_type": "선택 안함",
+      "strategy_memo": "기관 지속 매주 저평가, 거래량 증가, BB상단 가열, "
+    },
+    "holding_days": 3,
+    "start_date": "2026-02-01T09:40:18.295971",
+    "end_date": "2026-02-04T09:40:18.295971",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "5cd369b9",
+    "stock": {
+      "code": "290550",
+      "name": "디케이티",
+      "buy_price": 9880,
+      "quantity": 500,
+      "total_amount": 4940000,
+      "current_price": 9880.0,
+      "target_price": 10374,
+      "stop_loss": 9386,
+      "strategy_type": "정배열 (MA5>MA20>MA60)",
+      "strategy_memo": "거래량 증가, MACD 상승, BB 상단, 외국인 순매수, 기관 순매도, 저평가",
+      "investment_tags": [
+        "거래량 증가",
+        "MACD 상승",
+        "BB 상단",
+        "외국인 순매수",
+        "기관 순매도",
+        "저평가"
+      ]
+    },
+    "holding_days": 5,
+    "start_date": "2026-02-01T09:46:46.321914",
+    "end_date": "2026-02-06T09:46:46.321914",
+    "status": "pending",
+    "result_return": null,
+    "result_profit": null,
+    "exit_price": null
+  },
+  {
+    "id": "b2ddcd86",
+    "stock": {
+      "code": "030530",
+      "name": "원익홀딩스",
+      "buy_price": 42300,
+      "quantity": 200,
+      "total_amount": 8460000,
+      "current_price": 42300.0,
+      "target_price": 10374,
+      "stop_loss": 9386,
+      "strategy_type": "정배열 (MA5>MA20>MA60)",
+      "strategy_memo": "추세선 지지, 기관+외국인 동반 매수",
+      "investment_tags": [
+        "추세선 지지",
+        "기관+외국인 동반 매수"
+      ]
+    },
+    "holding_days": 5,
+    "start_date": "2026-02-01T09:48:40.898507",
+    "end_date": "2026-02-06T09:48:40.898507",
     "status": "pending",
     "result_return": null,
     "result_profit": null,
