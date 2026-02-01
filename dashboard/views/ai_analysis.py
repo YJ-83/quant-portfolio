@@ -2,6 +2,9 @@
 AI 추천 및 뉴스 분석 페이지
 Gemini API 기반 주식 분석 + 뉴스 감성 분석
 """
+# 코드 버전 마커 (배포 확인용)
+_CODE_VERSION = "v2.1-debug-20260201"
+
 import streamlit as st
 import pandas as pd
 import numpy as np
@@ -331,13 +334,14 @@ def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler
 
                 # 디버깅: API 호출 후 상태 표시
                 with st.expander("🔧 API 디버깅 정보", expanded=True):
+                    st.write(f"**코드 버전: {_CODE_VERSION}**")
                     st.write(f"- is_available: {analyzer.is_available()}")
                     st.write(f"- use_new_api: {analyzer.use_new_api}")
                     st.write(f"- initialized: {analyzer.initialized}")
                     st.write(f"- api_key 존재: {bool(analyzer.api_key)}")
                     st.write(f"- api_key 미리보기: {analyzer.api_key[:15] if analyzer.api_key else 'None'}...")
                     st.write(f"- client 존재: {analyzer.client is not None}")
-                    st.write(f"- last_error (직후): {getattr(analyzer, 'last_error', 'None')}")
+                    st.write(f"- last_error (직후): {getattr(analyzer, 'last_error', 'attr없음')}")
                     st.write(f"- init_error: {getattr(analyzer, 'init_error', 'None')}")
                     st.write(f"- is_fallback: {recommendation.get('is_fallback', False)}")
                     st.write(f"- api_error: {recommendation.get('api_error', 'None')}")
