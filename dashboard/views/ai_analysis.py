@@ -3,7 +3,7 @@ AI 추천 및 뉴스 분석 페이지
 Gemini API 기반 주식 분석 + 뉴스 감성 분석
 """
 # 코드 버전 마커 (배포 확인용)
-_CODE_VERSION = "v2.3-debug-20260201"
+_CODE_VERSION = "v2.4-newmodels-20260201"
 
 import streamlit as st
 import pandas as pd

@@ -119,7 +119,15 @@ class GeminiAnalyzer:
             return None
 
         # 시도할 모델 목록 (쿼타 초과 시 대체 모델 시도)
-        models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']
+        # gemini-1.5-flash-8b: 가장 가벼운 모델, 쿼타 여유로움
+        # gemini-1.5-pro: 유료 모델, 고품질 응답
+        # gemini-1.5-flash-latest: 안정적인 flash 버전
+        models_to_try = [
+            'gemini-1.5-flash-8b',      # 가장 가벼운 모델 (쿼타 여유)
+            'gemini-1.5-flash-latest',  # 안정적인 flash
+            'gemini-1.5-pro',           # 유료 고품질
+            'gemini-2.0-flash',         # 최신 (쿼타 제한적)
+        ]
         errors = []
 
         if self.use_new_api:
@@ -142,8 +150,12 @@ class GeminiAnalyzer:
                     error_str = str(e)
                     errors.append(f"{model_name}: {error_str[:100]}")
                     if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
-                        print(f"[Gemini] {model_name} 쿼타 초과, 다음 모델 시도...")
+                        print(f"[Gemini] {model_name} 쿼타 초과, 2초 대기 후 다음 모델 시도...")
+                        time.sleep(2)  # Rate limit 대기
                         continue  # 다음 모델 시도
+                    elif '404' in error_str or 'NOT_FOUND' in error_str:
+                        print(f"[Gemini] {model_name} 모델 없음, 다음 모델 시도...")
+                        continue
                     else:
                         print(f"[Gemini] {model_name} 오류: {e}")
                         continue  # 다른 에러도 다음 모델 시도
