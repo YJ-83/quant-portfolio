@@ -312,6 +312,9 @@ def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler
                     news_sentiment = {'overall_sentiment': 'neutral', 'positive_ratio': 0, 'negative_ratio': 0}
 
                 # 3. AI 추천 생성
+                # API 호출 전 last_error 초기화
+                analyzer.last_error = None
+
                 recommendation = analyzer.get_stock_recommendation(
                     stock_name=stock_name,
                     current_price=current_price,
@@ -323,6 +326,9 @@ def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler
                     }
                 )
 
+                # API 호출 후 last_error를 session_state에 저장
+                st.session_state['last_api_error'] = getattr(analyzer, 'last_error', None)
+
                 # 디버깅: API 호출 후 상태 표시
                 with st.expander("🔧 API 디버깅 정보", expanded=True):
                     st.write(f"- is_available: {analyzer.is_available()}")
@@ -331,7 +337,7 @@ def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler
                     st.write(f"- api_key 존재: {bool(analyzer.api_key)}")
                     st.write(f"- api_key 미리보기: {analyzer.api_key[:15] if analyzer.api_key else 'None'}...")
                     st.write(f"- client 존재: {analyzer.client is not None}")
-                    st.write(f"- last_error: {getattr(analyzer, 'last_error', 'None')}")
+                    st.write(f"- last_error (직후): {getattr(analyzer, 'last_error', 'None')}")
                     st.write(f"- init_error: {getattr(analyzer, 'init_error', 'None')}")
                     st.write(f"- is_fallback: {recommendation.get('is_fallback', False)}")
                     st.write(f"- api_error: {recommendation.get('api_error', 'None')}")
