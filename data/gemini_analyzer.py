@@ -1,21 +1,28 @@
 """
 Google Gemini API 기반 주식 분석 모듈
+새로운 google-genai 패키지 사용
 토큰 효율화를 위해 배치 처리 및 캐싱 적용
 """
 import os
-import json
 import time
-from typing import Dict, List, Optional, Any
+import re
+from typing import Dict, List, Optional
 from datetime import datetime
-from functools import lru_cache
 
-# Gemini API 라이브러리
+# Gemini API 라이브러리 (새 버전)
+GEMINI_AVAILABLE = False
+genai_client = None
+
 try:
-    import google.generativeai as genai
+    from google import genai
     GEMINI_AVAILABLE = True
 except ImportError:
-    GEMINI_AVAILABLE = False
-    print("Warning: google-generativeai 패키지가 설치되지 않았습니다. pip install google-generativeai")
+    try:
+        # 구버전 fallback
+        import google.generativeai as genai_old
+        GEMINI_AVAILABLE = True
+    except ImportError:
+        print("Warning: google-genai 패키지가 설치되지 않았습니다. pip install google-genai")
 
 
 # ============================================================
@@ -34,32 +41,70 @@ class GeminiAnalyzer:
             api_key: Gemini API 키. None이면 환경변수에서 로드
         """
         self.api_key = api_key or os.getenv('GEMINI_API_KEY')
-        self.model = None
+        self.client = None
         self.initialized = False
+        self.use_new_api = False
 
         if self.api_key and GEMINI_AVAILABLE:
             try:
-                genai.configure(api_key=self.api_key)
-                # gemini-1.5-flash: 빠르고 저렴 (토큰 효율적)
-                self.model = genai.GenerativeModel('gemini-1.5-flash')
+                # 새 API 시도
+                from google import genai
+                self.client = genai.Client(api_key=self.api_key)
+                self.use_new_api = True
                 self.initialized = True
-            except Exception as e:
-                print(f"Gemini 초기화 실패: {e}")
+            except Exception as e1:
+                try:
+                    # 구 API fallback
+                    import google.generativeai as genai_old
+                    genai_old.configure(api_key=self.api_key)
+                    self.client = genai_old.GenerativeModel('gemini-1.5-flash')
+                    self.use_new_api = False
+                    self.initialized = True
+                except Exception as e2:
+                    print(f"Gemini 초기화 실패: {e1}, {e2}")
 
     def is_available(self) -> bool:
         """Gemini API 사용 가능 여부"""
-        return self.initialized and self.model is not None
+        return self.initialized and self.client is not None
+
+    def _generate_content(self, prompt: str, max_tokens: int = 150) -> Optional[str]:
+        """통합 컨텐츠 생성"""
+        if not self.is_available():
+            return None
+
+        try:
+            if self.use_new_api:
+                # 새 API
+                response = self.client.models.generate_content(
+                    model='gemini-2.0-flash-lite',  # 더 가벼운 모델
+                    contents=prompt,
+                    config={
+                        'max_output_tokens': max_tokens,
+                        'temperature': 0.3
+                    }
+                )
+                return response.text
+            else:
+                # 구 API
+                response = self.client.generate_content(
+                    prompt,
+                    generation_config={
+                        'max_output_tokens': max_tokens,
+                        'temperature': 0.3
+                    }
+                )
+                return response.text
+        except Exception as e:
+            error_str = str(e)
+            if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
+                print(f"Gemini API 쿼타 초과: {e}")
+                return None
+            print(f"Gemini API 오류: {e}")
+            return None
 
     def analyze_news_sentiment(self, news_titles: List[str], stock_name: str = "") -> Dict:
         """
         뉴스 제목들의 감성 분석 (배치 처리로 토큰 절약)
-
-        Args:
-            news_titles: 뉴스 제목 리스트
-            stock_name: 종목명
-
-        Returns:
-            감성 분석 결과
         """
         if not self.is_available():
             return {'error': 'Gemini API 사용 불가', 'sentiment': 'unknown'}
@@ -67,88 +112,73 @@ class GeminiAnalyzer:
         if not news_titles:
             return {'sentiment': 'neutral', 'score': 0, 'analysis': '분석할 뉴스가 없습니다'}
 
-        # 캐시 키 생성 (제목들의 해시)
+        # 캐시 키
         cache_key = f"sentiment_{hash(tuple(news_titles[:10]))}"
         if cache_key in _ANALYSIS_CACHE:
             cached = _ANALYSIS_CACHE[cache_key]
             if time.time() - cached['time'] < _CACHE_DURATION:
                 return cached['data']
 
-        # 토큰 절약: 최대 10개 제목만, 각 제목 최대 50자
-        titles_text = "\n".join([
-            f"- {title[:50]}" for title in news_titles[:10]
-        ])
+        # 프롬프트 (토큰 절약)
+        titles_text = "\n".join([f"- {title[:50]}" for title in news_titles[:10]])
 
-        prompt = f"""다음은 {stock_name or '주식'} 관련 뉴스 제목들입니다.
-전체적인 감성을 분석해주세요.
+        prompt = f"""다음 {stock_name or '주식'} 뉴스 제목들의 감성을 분석하세요.
 
-뉴스 제목:
 {titles_text}
 
-다음 형식으로 간단히 답변해주세요:
+답변 형식:
 감성: [긍정/부정/중립]
-점수: [-1.0 ~ 1.0 사이 숫자]
-요약: [한 줄 요약]"""
+점수: [-1.0~1.0]
+요약: [한 줄]"""
 
-        try:
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=150,  # 토큰 제한
-                    temperature=0.3  # 일관성 있는 응답
-                )
-            )
+        result_text = self._generate_content(prompt, 100)
 
-            result_text = response.text
+        if not result_text:
+            return self._fallback_sentiment(news_titles)
 
-            # 결과 파싱
-            sentiment = 'neutral'
-            score = 0.0
-            summary = result_text
+        # 파싱
+        sentiment = 'neutral'
+        score = 0.0
+        summary = result_text
 
-            if '긍정' in result_text:
-                sentiment = 'positive'
-            elif '부정' in result_text:
-                sentiment = 'negative'
+        if '긍정' in result_text:
+            sentiment = 'positive'
+        elif '부정' in result_text:
+            sentiment = 'negative'
 
-            # 점수 추출 시도
-            import re
-            score_match = re.search(r'점수[:\s]*([+-]?\d*\.?\d+)', result_text)
-            if score_match:
-                try:
-                    score = float(score_match.group(1))
-                    score = max(-1.0, min(1.0, score))  # 범위 제한
-                except:
-                    pass
+        score_match = re.search(r'점수[:\s]*([+-]?\d*\.?\d+)', result_text)
+        if score_match:
+            try:
+                score = float(score_match.group(1))
+                score = max(-1.0, min(1.0, score))
+            except:
+                pass
 
-            # 요약 추출 시도
-            summary_match = re.search(r'요약[:\s]*(.+?)(?:\n|$)', result_text)
-            if summary_match:
-                summary = summary_match.group(1).strip()
+        summary_match = re.search(r'요약[:\s]*(.+?)(?:\n|$)', result_text)
+        if summary_match:
+            summary = summary_match.group(1).strip()
 
-            result = {
-                'sentiment': sentiment,
-                'score': score,
-                'analysis': summary,
-                'raw_response': result_text,
-                'news_count': len(news_titles)
-            }
+        result = {
+            'sentiment': sentiment,
+            'score': score,
+            'analysis': summary,
+            'news_count': len(news_titles)
+        }
 
-            # 캐시 저장
-            _ANALYSIS_CACHE[cache_key] = {
-                'data': result,
-                'time': time.time()
-            }
+        _ANALYSIS_CACHE[cache_key] = {'data': result, 'time': time.time()}
+        return result
 
-            return result
-
-        except Exception as e:
-            return {
-                'error': str(e),
-                'sentiment': 'unknown',
-                'score': 0,
-                'analysis': f'분석 실패: {e}'
-            }
+    def _fallback_sentiment(self, news_titles: List[str]) -> Dict:
+        """키워드 기반 fallback 감성 분석"""
+        from data.news_crawler import analyze_news_batch
+        news_list = [{'title': t} for t in news_titles]
+        batch = analyze_news_batch(news_list)
+        return {
+            'sentiment': batch['overall_sentiment'],
+            'score': (batch['positive_ratio'] - batch['negative_ratio']) / 100,
+            'analysis': f"키워드 분석: 긍정 {batch['positive_ratio']:.0f}%, 부정 {batch['negative_ratio']:.0f}%",
+            'is_fallback': True
+        }
 
     def get_stock_recommendation(
         self,
@@ -158,145 +188,93 @@ class GeminiAnalyzer:
         technical_signals: Dict,
         news_sentiment: Dict
     ) -> Dict:
-        """
-        종합 매매 추천 생성
+        """종합 매매 추천 생성"""
 
-        Args:
-            stock_name: 종목명
-            current_price: 현재가
-            price_change: 등락률 (%)
-            technical_signals: 기술적 지표 신호
-            news_sentiment: 뉴스 감성 분석 결과
-
-        Returns:
-            AI 추천 결과
-        """
-        if not self.is_available():
-            return self._fallback_recommendation(technical_signals, news_sentiment)
-
-        # 캐시 키
+        # 캐시
         cache_key = f"rec_{stock_name}_{datetime.now().strftime('%Y%m%d%H')}"
         if cache_key in _ANALYSIS_CACHE:
             cached = _ANALYSIS_CACHE[cache_key]
             if time.time() - cached['time'] < _CACHE_DURATION:
                 return cached['data']
 
+        if not self.is_available():
+            return self._fallback_recommendation(technical_signals, news_sentiment)
+
         # 기술적 신호 요약
         tech_summary = self._summarize_technical(technical_signals)
 
-        prompt = f"""주식 종목 분석 요청:
-
+        prompt = f"""주식 분석:
 종목: {stock_name}
-현재가: {current_price:,.0f}원
-등락률: {price_change:+.2f}%
+현재가: {current_price:,.0f}원 ({price_change:+.2f}%)
+기술분석: {tech_summary}
+뉴스감성: {news_sentiment.get('sentiment', '중립')}
 
-기술적 분석:
-{tech_summary}
-
-뉴스 감성: {news_sentiment.get('sentiment', '중립')}
-뉴스 요약: {news_sentiment.get('analysis', '정보 없음')[:100]}
-
-위 정보를 종합하여 매매 추천을 해주세요.
-다음 형식으로 간단히 답변:
+답변 형식:
 추천: [매수/매도/관망]
-신뢰도: [1-5 사이 숫자]
-근거: [2줄 이내 요약]
-주의사항: [한 줄]"""
+신뢰도: [1-5]
+근거: [한 줄]"""
 
-        try:
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=200,
-                    temperature=0.4
-                )
-            )
+        result_text = self._generate_content(prompt, 100)
 
-            result_text = response.text
-
-            # 결과 파싱
-            recommendation = '관망'
-            confidence = 3
-            reason = result_text
-
-            if '매수' in result_text:
-                recommendation = '매수'
-            elif '매도' in result_text:
-                recommendation = '매도'
-
-            # 신뢰도 추출
-            import re
-            conf_match = re.search(r'신뢰도[:\s]*(\d)', result_text)
-            if conf_match:
-                confidence = int(conf_match.group(1))
-                confidence = max(1, min(5, confidence))
-
-            # 근거 추출
-            reason_match = re.search(r'근거[:\s]*(.+?)(?:주의|$)', result_text, re.DOTALL)
-            if reason_match:
-                reason = reason_match.group(1).strip()[:200]
-
-            result = {
-                'recommendation': recommendation,
-                'confidence': confidence,
-                'reason': reason,
-                'raw_response': result_text,
-                'timestamp': datetime.now().isoformat()
-            }
-
-            # 캐시 저장
-            _ANALYSIS_CACHE[cache_key] = {
-                'data': result,
-                'time': time.time()
-            }
-
-            return result
-
-        except Exception as e:
+        if not result_text:
             return self._fallback_recommendation(technical_signals, news_sentiment)
+
+        # 파싱
+        recommendation = '관망'
+        confidence = 3
+
+        if '매수' in result_text:
+            recommendation = '매수'
+        elif '매도' in result_text:
+            recommendation = '매도'
+
+        conf_match = re.search(r'신뢰도[:\s]*(\d)', result_text)
+        if conf_match:
+            confidence = int(conf_match.group(1))
+            confidence = max(1, min(5, confidence))
+
+        reason_match = re.search(r'근거[:\s]*(.+?)(?:\n|$)', result_text, re.DOTALL)
+        reason = reason_match.group(1).strip()[:150] if reason_match else result_text[:150]
+
+        result = {
+            'recommendation': recommendation,
+            'confidence': confidence,
+            'reason': reason,
+            'timestamp': datetime.now().isoformat()
+        }
+
+        _ANALYSIS_CACHE[cache_key] = {'data': result, 'time': time.time()}
+        return result
 
     def _summarize_technical(self, signals: Dict) -> str:
         """기술적 지표 요약"""
-        lines = []
-
+        parts = []
         if 'rsi' in signals:
             rsi = signals['rsi']
             status = '과매수' if rsi > 70 else ('과매도' if rsi < 30 else '중립')
-            lines.append(f"RSI: {rsi:.1f} ({status})")
-
-        if 'macd' in signals:
-            macd = signals['macd']
-            signal = signals.get('macd_signal', 0)
-            status = '매수신호' if macd > signal else '매도신호'
-            lines.append(f"MACD: {status}")
-
+            parts.append(f"RSI {rsi:.0f}({status})")
         if 'ma_trend' in signals:
-            lines.append(f"이평선: {signals['ma_trend']}")
-
-        if 'volume_trend' in signals:
-            lines.append(f"거래량: {signals['volume_trend']}")
-
-        if 'bb_position' in signals:
-            lines.append(f"볼린저밴드: {signals['bb_position']}")
-
-        return "\n".join(lines) if lines else "기술적 분석 정보 없음"
+            parts.append(signals['ma_trend'].replace(' 📈', '').replace(' 📉', ''))
+        return ", ".join(parts) if parts else "정보없음"
 
     def _fallback_recommendation(self, technical_signals: Dict, news_sentiment: Dict) -> Dict:
-        """API 실패시 규칙 기반 추천"""
+        """규칙 기반 추천"""
         score = 0
 
-        # 기술적 신호 점수
-        if technical_signals.get('rsi', 50) < 30:
-            score += 1  # 과매도 = 매수 유리
-        elif technical_signals.get('rsi', 50) > 70:
-            score -= 1  # 과매수 = 매도 유리
-
-        if technical_signals.get('macd', 0) > technical_signals.get('macd_signal', 0):
+        # RSI
+        rsi = technical_signals.get('rsi', 50)
+        if rsi < 30:
             score += 1
+        elif rsi > 70:
+            score -= 1
+
+        # MACD
+        if technical_signals.get('macd', 0) > technical_signals.get('macd_signal', 0):
+            score += 0.5
         else:
             score -= 0.5
 
-        # 뉴스 감성 점수
+        # 뉴스
         sentiment = news_sentiment.get('sentiment', 'neutral')
         if sentiment == 'positive':
             score += 0.5
@@ -312,87 +290,11 @@ class GeminiAnalyzer:
 
         return {
             'recommendation': recommendation,
-            'confidence': 2,  # 낮은 신뢰도 (규칙 기반)
+            'confidence': 2,
             'reason': '기술적 지표와 뉴스 감성을 종합한 규칙 기반 분석입니다.',
-            'raw_response': None,
             'is_fallback': True,
             'timestamp': datetime.now().isoformat()
         }
-
-    def analyze_market_overview(self, market_data: Dict) -> Dict:
-        """
-        시장 전체 개요 분석
-
-        Args:
-            market_data: 시장 데이터 (지수, 거래량 등)
-
-        Returns:
-            시장 분석 결과
-        """
-        if not self.is_available():
-            return {
-                'outlook': 'neutral',
-                'analysis': '시장 분석을 위한 AI 연결이 필요합니다.',
-                'sectors': []
-            }
-
-        cache_key = f"market_{datetime.now().strftime('%Y%m%d%H')}"
-        if cache_key in _ANALYSIS_CACHE:
-            cached = _ANALYSIS_CACHE[cache_key]
-            if time.time() - cached['time'] < _CACHE_DURATION:
-                return cached['data']
-
-        # 간단한 시장 데이터 요약
-        market_summary = f"""
-KOSPI: {market_data.get('kospi', 'N/A')} ({market_data.get('kospi_change', 'N/A')})
-KOSDAQ: {market_data.get('kosdaq', 'N/A')} ({market_data.get('kosdaq_change', 'N/A')})
-거래대금: {market_data.get('volume', 'N/A')}
-"""
-
-        prompt = f"""오늘 한국 주식시장 현황:
-{market_summary}
-
-시장 전망을 간단히 분석해주세요:
-전망: [상승/하락/보합]
-분석: [2줄 요약]
-주목섹터: [1-2개 섹터]"""
-
-        try:
-            response = self.model.generate_content(
-                prompt,
-                generation_config=genai.types.GenerationConfig(
-                    max_output_tokens=150,
-                    temperature=0.3
-                )
-            )
-
-            result_text = response.text
-
-            outlook = 'neutral'
-            if '상승' in result_text:
-                outlook = 'bullish'
-            elif '하락' in result_text:
-                outlook = 'bearish'
-
-            result = {
-                'outlook': outlook,
-                'analysis': result_text[:300],
-                'timestamp': datetime.now().isoformat()
-            }
-
-            _ANALYSIS_CACHE[cache_key] = {
-                'data': result,
-                'time': time.time()
-            }
-
-            return result
-
-        except Exception as e:
-            return {
-                'outlook': 'unknown',
-                'analysis': f'분석 실패: {e}',
-                'error': str(e)
-            }
 
 
 def clear_analysis_cache():
@@ -401,12 +303,12 @@ def clear_analysis_cache():
     _ANALYSIS_CACHE = {}
 
 
-# 싱글톤 인스턴스
+# 싱글톤
 _analyzer_instance: Optional[GeminiAnalyzer] = None
 
 
 def get_analyzer(api_key: Optional[str] = None) -> GeminiAnalyzer:
-    """분석기 싱글톤 인스턴스"""
+    """분석기 싱글톤"""
     global _analyzer_instance
     if _analyzer_instance is None or api_key:
         _analyzer_instance = GeminiAnalyzer(api_key)
