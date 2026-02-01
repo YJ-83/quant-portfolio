@@ -10,8 +10,8 @@ from pathlib import Path
 
 # 페이지 설정 - 반드시 가장 먼저 실행
 st.set_page_config(
-    page_title="퀀트 포트폴리오",
-    page_icon="🚀",
+    page_title="YJ 놀이터",
+    page_icon="🎮",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -24,7 +24,7 @@ st.markdown("""
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="퀀트">
+    <meta name="apple-mobile-web-app-title" content="YJ 놀이터">
     <meta name="theme-color" content="#667eea">
     <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
     <!-- 아이콘 -->
@@ -493,8 +493,8 @@ st.markdown("""
 # 사이드바 헤더
 st.sidebar.markdown("""
 <div style='text-align: center; padding: 1.5rem 0;'>
-    <div style='font-size: 4rem; margin-bottom: 0.5rem; animation: float 3s ease-in-out infinite;'>🚀</div>
-    <h1 style='font-size: 1.5rem; margin: 0; background: linear-gradient(135deg, #667eea, #f093fb); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>퀀트 포트폴리오</h1>
+    <div style='font-size: 4rem; margin-bottom: 0.5rem; animation: float 3s ease-in-out infinite;'>🎮</div>
+    <h1 style='font-size: 1.5rem; margin: 0; background: linear-gradient(135deg, #667eea, #f093fb); -webkit-background-clip: text; -webkit-text-fill-color: transparent;'>YJ 놀이터</h1>
 </div>
 """, unsafe_allow_html=True)
 
@@ -601,7 +601,7 @@ st.sidebar.markdown("""
 st.sidebar.markdown("""
 <div style='text-align: center; padding: 1rem 0;'>
     <p style='color: rgba(255,255,255,0.5); font-size: 0.75rem; margin: 0;'>
-        퀀트 포트폴리오 v1.0<br>
+        YJ 놀이터 v1.0<br>
         <span style='color: rgba(255,255,255,0.3);'>Powered by Streamlit</span>
     </p>
 </div>

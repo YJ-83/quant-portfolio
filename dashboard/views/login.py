@@ -15,7 +15,7 @@ from data.kis_api import KoreaInvestmentAPI
 def render_login_page():
     """로그인 페이지 렌더링 (set_page_config는 app.py에서 이미 호출됨)"""
 
-    st.title("🔐 퀀트 포트폴리오 로그인")
+    st.title("🔐 YJ 놀이터 로그인")
     st.markdown("---")
 
     st.info("""

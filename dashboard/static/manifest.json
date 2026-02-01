@@ -1,7 +1,7 @@
 {
-  "name": "퀀트 포트폴리오",
-  "short_name": "퀀트",
-  "description": "퀀트 전략 기반 주식 포트폴리오 분석 및 매매 시스템",
+  "name": "YJ 놀이터",
+  "short_name": "YJ 놀이터",
+  "description": "YJ 놀이터 - 퀀트 전략 기반 주식 분석 시스템",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#667eea",
