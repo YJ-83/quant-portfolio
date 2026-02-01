@@ -83,6 +83,16 @@ def render_ai_analysis():
     analyzer = get_analyzer(gemini_key if gemini_key else None)
     crawler = get_crawler()
 
+    # 디버깅: API 키 로드 상태 확인
+    key_source = "없음"
+    key_preview = ""
+    if gemini_key:
+        if 'GEMINI_API_KEY' in st.secrets if hasattr(st, 'secrets') else False:
+            key_source = "Streamlit Secrets"
+        else:
+            key_source = "환경변수"
+        key_preview = f"{gemini_key[:10]}..." if len(gemini_key) > 10 else gemini_key
+
     # 상태 표시 (카드 스타일)
     kst_now = datetime.now(KST)
 
@@ -106,6 +116,13 @@ def render_ai_analysis():
             else:
                 error_msg = getattr(analyzer, 'init_error', 'API 키 필요')
                 st.warning(f"⚠️ {error_msg}")
+                # 디버깅 정보 표시
+                with st.expander("🔍 디버깅 정보"):
+                    st.write(f"- API 키 소스: {key_source}")
+                    st.write(f"- API 키 미리보기: {key_preview}")
+                    st.write(f"- analyzer.initialized: {analyzer.initialized}")
+                    st.write(f"- analyzer.client: {analyzer.client is not None}")
+                    st.write(f"- init_error: {analyzer.init_error}")
         with col2:
             st.info("📰 뉴스 크롤링 준비됨")
         with col3:
