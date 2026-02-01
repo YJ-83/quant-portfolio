@@ -665,7 +665,7 @@ def render_investor_trend(api, code: str, name: str = "", days: int = 5, key_pre
 
 
 def _render_investor_daily_compact(df, key_prefix: str) -> None:
-    """투자자 동향 일별 컴팩트 표시 (모바일용)"""
+    """투자자 동향 일별 컴팩트 표시 (모바일용) - Streamlit 네이티브 사용"""
     def format_num(n):
         if abs(n) >= 1_000_000:
             return f"{n/1_000_000:+.1f}M"
@@ -674,29 +674,23 @@ def _render_investor_daily_compact(df, key_prefix: str) -> None:
         else:
             return f"{n:+,}"
 
-    def get_color(n):
-        return "#11998e" if n > 0 else "#f5576c" if n < 0 else "#888"
+    def get_icon(n):
+        return "🟢" if n > 0 else "🔴" if n < 0 else "⚪"
 
-    rows_html = ""
-    for _, row in df.iterrows():
-        date_str = row['date'].replace('2026.', '')  # 연도 제거
+    st.caption("📊 투자자 동향")
+
+    for idx, row in df.iterrows():
+        date_str = str(row['date']).replace('2026.', '').replace('2025.', '')  # 연도 제거
         inst = row['institution']
         frgn = row['foreign']
 
-        rows_html += f"""
-        <div style='display: flex; justify-content: space-between; padding: 4px 0; border-bottom: 1px solid rgba(255,255,255,0.1);'>
-            <span style='color: #888; font-size: 0.75rem;'>{date_str}</span>
-            <span style='color: {get_color(inst)}; font-size: 0.75rem;'>기관 {format_num(inst)}</span>
-            <span style='color: {get_color(frgn)}; font-size: 0.75rem;'>외인 {format_num(frgn)}</span>
-        </div>
-        """
-
-    st.markdown(f"""
-    <div style='background: rgba(0,0,0,0.2); border-radius: 8px; padding: 8px; margin: 4px 0;'>
-        <div style='color: #aaa; font-size: 0.75rem; margin-bottom: 4px;'>📊 투자자 동향</div>
-        {rows_html}
-    </div>
-    """, unsafe_allow_html=True)
+        cols = st.columns([1, 2, 2])
+        with cols[0]:
+            st.caption(date_str)
+        with cols[1]:
+            st.caption(f"기관 {get_icon(inst)} {format_num(inst)}")
+        with cols[2]:
+            st.caption(f"외인 {get_icon(frgn)} {format_num(frgn)}")
 
 
 def _render_investor_daily_full(df, key_prefix: str) -> None:
