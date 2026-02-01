@@ -275,9 +275,12 @@ class GeminiAnalyzer:
 신뢰도: [1-5]
 근거: [한 줄]"""
 
+        print(f"[Gemini] get_stock_recommendation 호출 - {stock_name}")
         result_text = self._generate_content(prompt, 100)
+        print(f"[Gemini] _generate_content 결과: {result_text[:50] if result_text else 'None'}")
 
         if not result_text:
+            print(f"[Gemini] fallback으로 전환, last_error: {self.last_error}")
             return self._fallback_recommendation(technical_signals, news_sentiment)
 
         # 파싱

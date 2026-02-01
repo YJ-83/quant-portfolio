@@ -328,9 +328,14 @@ def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler
                     st.write(f"- is_available: {analyzer.is_available()}")
                     st.write(f"- use_new_api: {analyzer.use_new_api}")
                     st.write(f"- initialized: {analyzer.initialized}")
+                    st.write(f"- api_key 존재: {bool(analyzer.api_key)}")
+                    st.write(f"- api_key 미리보기: {analyzer.api_key[:15] if analyzer.api_key else 'None'}...")
+                    st.write(f"- client 존재: {analyzer.client is not None}")
                     st.write(f"- last_error: {getattr(analyzer, 'last_error', 'None')}")
+                    st.write(f"- init_error: {getattr(analyzer, 'init_error', 'None')}")
                     st.write(f"- is_fallback: {recommendation.get('is_fallback', False)}")
                     st.write(f"- api_error: {recommendation.get('api_error', 'None')}")
+                    st.write(f"- reason: {recommendation.get('reason', '')[:100]}")
 
                 # 결과 표시
                 _display_recommendation_result(
