@@ -49,7 +49,12 @@ def render_ai_analysis():
 
     # 헤더
     if is_mobile:
-        st.markdown("### 🤖 AI 분석")
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 12px; border-radius: 10px; margin-bottom: 1rem;'>
+            <h3 style='color: white; margin: 0;'>🤖 AI 분석</h3>
+        </div>
+        """, unsafe_allow_html=True)
     else:
         st.markdown("""
         <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
@@ -71,11 +76,20 @@ def render_ai_analysis():
     analyzer = get_analyzer(gemini_key if gemini_key else None)
     crawler = get_crawler()
 
+    # 상태 표시 (카드 스타일)
+    kst_now = datetime.now(KST)
+
     if is_mobile:
-        if analyzer.is_available():
-            st.success("✅ Gemini AI 연결됨", icon="🤖")
-        else:
-            st.warning("⚠️ Gemini API 키 필요")
+        cols = st.columns(3)
+        with cols[0]:
+            if analyzer.is_available():
+                st.markdown("✅ **AI 연결**")
+            else:
+                st.markdown("⚠️ **API 필요**")
+        with cols[1]:
+            st.markdown("📰 **뉴스 준비**")
+        with cols[2]:
+            st.markdown(f"🕐 **{kst_now.strftime('%H:%M')}**")
     else:
         col1, col2, col3 = st.columns(3)
         with col1:
@@ -86,12 +100,11 @@ def render_ai_analysis():
         with col2:
             st.info("📰 뉴스 크롤링 준비됨")
         with col3:
-            kst_now = datetime.now(KST)
             st.info(f"🕐 {kst_now.strftime('%H:%M')} 기준")
 
     # 탭 구성
     if is_mobile:
-        tabs = st.tabs(["📰 뉴스", "🎯 종목분석", "📊 시장"])
+        tabs = st.tabs(["📰 뉴스", "🎯 AI추천", "📊 시장"])
     else:
         tabs = st.tabs(["📰 종목 뉴스 분석", "🎯 AI 종합 추천", "📊 시장 뉴스", "⚙️ 설정"])
 
@@ -116,75 +129,88 @@ def render_ai_analysis():
 def _render_stock_news_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_mobile: bool):
     """종목별 뉴스 분석 탭"""
 
-    st.subheader("📰 종목별 뉴스 감성 분석")
-
     # 종목 선택
     if is_mobile:
-        col1, col2 = st.columns([1, 2])
-    else:
-        col1, col2, col3 = st.columns([1, 2, 1])
-
-    with col1:
-        market = st.selectbox(
-            "시장",
-            ["KOSPI", "KOSDAQ"],
-            key="ai_news_market"
-        )
-
-    with col2:
+        market = st.selectbox("시장", ["KOSPI", "KOSDAQ"], key="ai_news_market")
         stocks = get_kospi_stocks() if market == "KOSPI" else get_kosdaq_stocks()
         stock_options = [f"{name} ({code})" for code, name in stocks[:100]]
-
-        selected = st.selectbox(
-            "종목 선택",
-            stock_options,
-            key="ai_news_stock"
-        )
-
-    if not is_mobile:
+        selected = st.selectbox("종목", stock_options, key="ai_news_stock")
+        news_count = 10
+    else:
+        col1, col2, col3 = st.columns([1, 2, 1])
+        with col1:
+            market = st.selectbox("시장", ["KOSPI", "KOSDAQ"], key="ai_news_market")
+        with col2:
+            stocks = get_kospi_stocks() if market == "KOSPI" else get_kosdaq_stocks()
+            stock_options = [f"{name} ({code})" for code, name in stocks[:100]]
+            selected = st.selectbox("종목 선택", stock_options, key="ai_news_stock")
         with col3:
             news_count = st.slider("뉴스 수", 5, 20, 10, key="ai_news_count")
-    else:
-        news_count = 10
 
     # 분석 버튼
-    if st.button("🔍 뉴스 분석", key="analyze_news_btn", use_container_width=True):
+    if st.button("🔍 뉴스 분석", key="analyze_news_btn", use_container_width=True, type="primary"):
         if selected:
-            # 종목코드 추출
             stock_code = selected.split("(")[1].replace(")", "").strip()
             stock_name = selected.split("(")[0].strip()
 
             with st.spinner(f"{stock_name} 뉴스 분석 중..."):
-                # 뉴스 크롤링
                 news_list = crawler.get_stock_news(stock_code, news_count)
 
                 if news_list:
-                    # 감성 분석
-                    st.markdown(f"#### 📋 {stock_name} 최신 뉴스 ({len(news_list)}건)")
-
-                    # 키워드 기반 분석 (토큰 절약)
                     batch_result = analyze_news_batch(news_list)
 
-                    # 감성 요약 표시
-                    _display_sentiment_summary(batch_result, is_mobile)
+                    # 감성 요약 카드
+                    _display_sentiment_summary(batch_result, is_mobile, stock_name)
 
-                    # 개별 뉴스 목록
+                    # 뉴스 목록
                     st.markdown("---")
-                    st.markdown("##### 📰 뉴스 상세")
 
                     for i, detail in enumerate(batch_result['details'][:news_count]):
                         sentiment = detail['sentiment']
-                        emoji = "🟢" if sentiment == 'positive' else ("🔴" if sentiment == 'negative' else "⚪")
+                        source = detail.get('source', '')
+                        date = detail.get('date', '')
 
-                        with st.expander(f"{emoji} {detail['title'][:50]}...", expanded=(i < 3)):
-                            st.caption(f"📅 {detail.get('date', '')}")
-                            st.write(f"감성: **{_sentiment_korean(sentiment)}**")
-                            if detail['keywords']:
-                                kw_text = ", ".join([k[0] for k in detail['keywords'][:3]])
-                                st.caption(f"🏷️ 키워드: {kw_text}")
+                        if sentiment == 'positive':
+                            color = '#00C851'
+                            emoji = '🟢'
+                            badge = '긍정'
+                        elif sentiment == 'negative':
+                            color = '#ff4444'
+                            emoji = '🔴'
+                            badge = '부정'
+                        else:
+                            color = '#ffbb33'
+                            emoji = '⚪'
+                            badge = '중립'
 
-                    # AI 심층 분석 (Gemini 사용 가능시)
-                    if analyzer.is_available():
+                        if is_mobile:
+                            st.markdown(f"""
+                            <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;
+                                        margin-bottom: 8px; border-left: 3px solid {color};'>
+                                <div style='font-size: 0.85rem; color: white;'>{emoji} {detail['title'][:45]}...</div>
+                                <div style='font-size: 0.7rem; color: rgba(255,255,255,0.5); margin-top: 4px;'>
+                                    {source} · {date} · <span style='color: {color};'>{badge}</span>
+                                </div>
+                            </div>
+                            """, unsafe_allow_html=True)
+                        else:
+                            st.markdown(f"""
+                            <div style='background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 10px;
+                                        margin-bottom: 10px; border-left: 4px solid {color};
+                                        display: flex; justify-content: space-between; align-items: center;'>
+                                <div>
+                                    <div style='font-size: 0.95rem; color: white;'>{emoji} {detail['title']}</div>
+                                    <div style='font-size: 0.8rem; color: rgba(255,255,255,0.5); margin-top: 4px;'>
+                                        📰 {source} · 📅 {date}
+                                    </div>
+                                </div>
+                                <span style='background: {color}22; color: {color}; padding: 4px 10px;
+                                             border-radius: 12px; font-size: 0.75rem; font-weight: 600;'>{badge}</span>
+                            </div>
+                            """, unsafe_allow_html=True)
+
+                    # AI 심층 분석 버튼 (PC만)
+                    if not is_mobile and analyzer.is_available():
                         st.markdown("---")
                         if st.button("🤖 AI 심층 분석 요청", key="ai_deep_analysis"):
                             with st.spinner("Gemini AI 분석 중..."):
@@ -192,13 +218,7 @@ def _render_stock_news_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_mo
                                 ai_result = analyzer.analyze_news_sentiment(titles, stock_name)
 
                                 if 'error' not in ai_result:
-                                    st.success("AI 분석 완료")
-                                    st.markdown(f"""
-                                    **AI 감성 분석 결과:**
-                                    - 감성: {_sentiment_korean(ai_result['sentiment'])}
-                                    - 점수: {ai_result['score']:.2f}
-                                    - 요약: {ai_result['analysis']}
-                                    """)
+                                    st.success(f"**AI 분석:** {ai_result['analysis']}")
                                 else:
                                     st.error(f"AI 분석 실패: {ai_result['error']}")
                 else:
@@ -208,39 +228,23 @@ def _render_stock_news_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_mo
 def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_mobile: bool):
     """AI 종합 추천 탭"""
 
-    st.subheader("🎯 AI 종합 매매 추천")
-
     if not analyzer.is_available():
-        st.warning("""
-        ⚠️ Gemini API 키가 설정되지 않았습니다.
-
-        설정 방법:
-        1. [Google AI Studio](https://makersuite.google.com/app/apikey)에서 API 키 발급
-        2. `.env` 파일에 `GEMINI_API_KEY=your_key` 추가
-        3. 또는 설정 탭에서 직접 입력
-        """)
-
-        st.info("💡 API 없이도 **키워드 기반 분석**은 사용 가능합니다.")
+        st.info("💡 Gemini API 키가 없어도 **키워드 기반 분석**은 사용 가능합니다.")
 
     # 종목 선택
-    col1, col2 = st.columns([1, 2])
-
-    with col1:
-        market = st.selectbox(
-            "시장",
-            ["KOSPI", "KOSDAQ"],
-            key="ai_rec_market"
-        )
-
-    with col2:
+    if is_mobile:
+        market = st.selectbox("시장", ["KOSPI", "KOSDAQ"], key="ai_rec_market")
         stocks = get_kospi_stocks() if market == "KOSPI" else get_kosdaq_stocks()
         stock_options = [f"{name} ({code})" for code, name in stocks[:100]]
-
-        selected = st.selectbox(
-            "분석할 종목",
-            stock_options,
-            key="ai_rec_stock"
-        )
+        selected = st.selectbox("종목", stock_options, key="ai_rec_stock")
+    else:
+        col1, col2 = st.columns([1, 3])
+        with col1:
+            market = st.selectbox("시장", ["KOSPI", "KOSDAQ"], key="ai_rec_market")
+        with col2:
+            stocks = get_kospi_stocks() if market == "KOSPI" else get_kosdaq_stocks()
+            stock_options = [f"{name} ({code})" for code, name in stocks[:100]]
+            selected = st.selectbox("분석할 종목", stock_options, key="ai_rec_stock")
 
     # 분석 버튼
     if st.button("🤖 AI 분석 시작", key="start_ai_analysis", use_container_width=True, type="primary"):
@@ -250,43 +254,32 @@ def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler
 
             with st.spinner(f"{stock_name} 종합 분석 중..."):
                 # 1. 주가 데이터 가져오기
+                current_price = 0
+                price_change = 0
+                technical_signals = {}
+
                 try:
                     api = get_api_connection()
                     if api:
-                        # 일봉 데이터 (get_daily_price 사용)
                         end_date = datetime.now().strftime("%Y%m%d")
                         start_date = (datetime.now() - timedelta(days=90)).strftime("%Y%m%d")
                         df = api.get_daily_price(stock_code, start_date=start_date, end_date=end_date, period='D')
                         if df is not None and len(df) > 0:
-                            # 최신 데이터가 맨 앞에 있을 수 있으므로 정렬
                             if 'date' in df.columns:
                                 df = df.sort_values('date')
                             current_price = float(df.iloc[-1]['close'])
                             prev_price = float(df.iloc[-2]['close']) if len(df) > 1 else current_price
                             price_change = ((current_price - prev_price) / prev_price) * 100
-
-                            # 기술적 지표 계산
                             technical_signals = _calculate_technical_signals(df)
-                        else:
-                            current_price = 0
-                            price_change = 0
-                            technical_signals = {}
-                    else:
-                        current_price = 0
-                        price_change = 0
-                        technical_signals = {}
                 except Exception as e:
-                    st.warning(f"가격 데이터 조회 실패: {e}")
-                    current_price = 0
-                    price_change = 0
-                    technical_signals = {}
+                    st.caption(f"⚠️ 가격 데이터 조회 실패: {e}")
 
                 # 2. 뉴스 감성 분석
                 news_list = crawler.get_stock_news(stock_code, 10)
                 if news_list:
                     news_sentiment = analyze_news_batch(news_list)
                 else:
-                    news_sentiment = {'overall_sentiment': 'neutral', 'analysis': '뉴스 없음'}
+                    news_sentiment = {'overall_sentiment': 'neutral', 'positive_ratio': 0, 'negative_ratio': 0}
 
                 # 3. AI 추천 생성
                 recommendation = analyzer.get_stock_recommendation(
@@ -310,63 +303,56 @@ def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler
 def _render_market_news_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_mobile: bool):
     """시장 뉴스 탭"""
 
-    st.subheader("📊 실시간 시장 뉴스")
-
-    if st.button("🔄 새로고침", key="refresh_market_news"):
-        clear_news_cache()
+    col1, col2 = st.columns([3, 1])
+    with col2:
+        if st.button("🔄 새로고침", key="refresh_market_news"):
+            clear_news_cache()
+            st.rerun()
 
     with st.spinner("시장 뉴스 로딩..."):
         market_news = crawler.get_market_news(15)
 
         if market_news:
-            # 감성 분석
             batch_result = analyze_news_batch(market_news)
-
-            # 요약 표시
-            _display_sentiment_summary(batch_result, is_mobile)
+            _display_sentiment_summary(batch_result, is_mobile, "시장")
 
             st.markdown("---")
 
-            # 뉴스 목록
-            for i, news in enumerate(market_news[:15]):
+            for i, news in enumerate(market_news[:12]):
                 sentiment_result = simple_sentiment_analysis(news['title'])
                 sentiment = sentiment_result['sentiment']
-                emoji = "🟢" if sentiment == 'positive' else ("🔴" if sentiment == 'negative' else "⚪")
+
+                if sentiment == 'positive':
+                    color = '#00C851'
+                    emoji = '🟢'
+                elif sentiment == 'negative':
+                    color = '#ff4444'
+                    emoji = '🔴'
+                else:
+                    color = '#ffbb33'
+                    emoji = '⚪'
 
                 if is_mobile:
-                    st.markdown(f"{emoji} **{news['title'][:40]}...**")
-                    st.caption(f"{news.get('date', '')} | {news.get('source', '')}")
+                    st.markdown(f"""
+                    <div style='padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);'>
+                        <span style='color: {color};'>{emoji}</span>
+                        <span style='color: white; font-size: 0.85rem;'>{news['title'][:40]}...</span>
+                        <span style='color: rgba(255,255,255,0.4); font-size: 0.7rem;'> {news.get('source', '')}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
                 else:
-                    col1, col2 = st.columns([4, 1])
-                    with col1:
-                        st.markdown(f"{emoji} {news['title']}")
-                    with col2:
-                        st.caption(news.get('date', ''))
-
-                if i < 14:
-                    st.markdown("---")
+                    st.markdown(f"""
+                    <div style='padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.1);
+                                display: flex; justify-content: space-between; align-items: center;'>
+                        <div>
+                            <span style='color: {color};'>{emoji}</span>
+                            <span style='color: white;'>{news['title']}</span>
+                        </div>
+                        <span style='color: rgba(255,255,255,0.5); font-size: 0.8rem;'>{news.get('source', '')} · {news.get('date', '')}</span>
+                    </div>
+                    """, unsafe_allow_html=True)
         else:
             st.info("시장 뉴스를 불러오는 중...")
-
-    # 섹터별 뉴스 (PC만)
-    if not is_mobile:
-        st.markdown("---")
-        st.subheader("🏭 섹터별 뉴스")
-
-        sectors = ["반도체", "자동차", "바이오", "2차전지", "AI"]
-        selected_sector = st.selectbox("섹터 선택", sectors, key="sector_news_select")
-
-        if st.button("섹터 뉴스 검색", key="search_sector_news"):
-            with st.spinner(f"{selected_sector} 관련 뉴스 검색 중..."):
-                sector_news = crawler.get_sector_news(selected_sector, 10)
-
-                if sector_news:
-                    for news in sector_news:
-                        sentiment = simple_sentiment_analysis(news['title'])['sentiment']
-                        emoji = "🟢" if sentiment == 'positive' else ("🔴" if sentiment == 'negative' else "⚪")
-                        st.markdown(f"{emoji} {news['title']}")
-                else:
-                    st.info("관련 뉴스가 없습니다.")
 
 
 def _render_settings_tab(analyzer: GeminiAnalyzer):
@@ -375,62 +361,40 @@ def _render_settings_tab(analyzer: GeminiAnalyzer):
     st.subheader("⚙️ AI 분석 설정")
 
     # Gemini API 키 설정
-    st.markdown("#### 🔑 Gemini API 키")
-
     current_key = os.getenv('GEMINI_API_KEY', '')
-    masked_key = current_key[:10] + "..." if len(current_key) > 10 else "(미설정)"
+    masked_key = current_key[:15] + "..." if len(current_key) > 15 else "(미설정)"
 
-    st.info(f"현재 키: {masked_key}")
+    st.markdown(f"**현재 API 키:** `{masked_key}`")
 
-    new_key = st.text_input(
-        "새 API 키 입력",
-        type="password",
-        placeholder="Gemini API 키를 입력하세요",
-        key="gemini_api_key_input"
-    )
+    new_key = st.text_input("새 API 키 입력", type="password", placeholder="Gemini API 키", key="gemini_key_input")
 
     if st.button("API 키 적용", key="apply_gemini_key"):
         if new_key:
             os.environ['GEMINI_API_KEY'] = new_key
             st.session_state['gemini_api_key'] = new_key
             clear_analysis_cache()
-            st.success("API 키가 적용되었습니다. 페이지를 새로고침하세요.")
+            st.success("API 키가 적용되었습니다!")
             st.rerun()
-        else:
-            st.warning("API 키를 입력해주세요.")
 
     st.markdown("---")
-
-    # 캐시 관리
-    st.markdown("#### 🗑️ 캐시 관리")
 
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("뉴스 캐시 삭제", key="clear_news_cache"):
+        if st.button("🗑️ 뉴스 캐시 삭제"):
             clear_news_cache()
-            st.success("뉴스 캐시가 삭제되었습니다.")
-
+            st.success("뉴스 캐시 삭제됨")
     with col2:
-        if st.button("분석 캐시 삭제", key="clear_analysis_cache"):
+        if st.button("🗑️ 분석 캐시 삭제"):
             clear_analysis_cache()
-            st.success("분석 캐시가 삭제되었습니다.")
+            st.success("분석 캐시 삭제됨")
 
-    st.markdown("---")
-
-    # API 키 발급 안내
     st.markdown("""
-    #### 📚 Gemini API 키 발급 방법
-
+    ---
+    **Gemini API 키 발급:**
     1. [Google AI Studio](https://makersuite.google.com/app/apikey) 접속
-    2. Google 계정으로 로그인
+    2. Google 계정 로그인
     3. "Create API Key" 클릭
-    4. 생성된 API 키 복사
-    5. 위 입력란에 붙여넣기
-
-    **참고:**
-    - Gemini 1.5 Flash 모델 사용 (빠르고 저렴)
-    - 무료 티어: 분당 15회, 일일 1,500회 요청 가능
-    - 분석 결과는 1시간 캐싱됨 (토큰 절약)
+    4. 발급된 키를 위 입력란에 붙여넣기
     """)
 
 
@@ -441,41 +405,84 @@ def _render_settings_tab(analyzer: GeminiAnalyzer):
 def _sentiment_korean(sentiment: str) -> str:
     """감성을 한글로 변환"""
     mapping = {
-        'positive': '긍정 🟢',
-        'negative': '부정 🔴',
-        'neutral': '중립 ⚪',
-        'unknown': '알수없음 ❓'
+        'positive': '긍정',
+        'negative': '부정',
+        'neutral': '중립',
+        'unknown': '알수없음'
     }
     return mapping.get(sentiment, sentiment)
 
 
-def _display_sentiment_summary(batch_result: dict, is_mobile: bool):
-    """감성 분석 요약 표시"""
+def _display_sentiment_summary(batch_result: dict, is_mobile: bool, title: str = ""):
+    """감성 분석 요약 카드 표시"""
     overall = batch_result['overall_sentiment']
+    pos = batch_result.get('positive_count', 0)
+    neg = batch_result.get('negative_count', 0)
+    neu = batch_result.get('neutral_count', 0)
+    total = batch_result.get('total_count', pos + neg + neu)
+
     pos_ratio = batch_result['positive_ratio']
     neg_ratio = batch_result['negative_ratio']
-    neu_ratio = batch_result['neutral_ratio']
+
+    if overall == 'positive':
+        main_color = '#00C851'
+        main_emoji = '🟢'
+        main_text = '긍정적'
+    elif overall == 'negative':
+        main_color = '#ff4444'
+        main_emoji = '🔴'
+        main_text = '부정적'
+    else:
+        main_color = '#ffbb33'
+        main_emoji = '⚪'
+        main_text = '중립적'
 
     if is_mobile:
         st.markdown(f"""
-        **감성 요약:** {_sentiment_korean(overall)}
-
-        🟢 긍정 {pos_ratio:.0f}% | 🔴 부정 {neg_ratio:.0f}% | ⚪ 중립 {neu_ratio:.0f}%
-        """)
+        <div style='background: linear-gradient(135deg, {main_color}22, {main_color}11);
+                    padding: 12px; border-radius: 10px; margin: 10px 0;
+                    border: 1px solid {main_color}44;'>
+            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                <span style='font-size: 1.2rem;'>{main_emoji} {title} 뉴스 감성</span>
+                <span style='color: {main_color}; font-weight: bold; font-size: 1.1rem;'>{main_text}</span>
+            </div>
+            <div style='margin-top: 8px; font-size: 0.8rem; color: rgba(255,255,255,0.7);'>
+                🟢 {pos}건 · 🔴 {neg}건 · ⚪ {neu}건 (총 {total}건)
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        col1, col2, col3, col4 = st.columns(4)
-
-        with col1:
-            st.metric("전체 감성", _sentiment_korean(overall))
-
-        with col2:
-            st.metric("🟢 긍정", f"{pos_ratio:.0f}%")
-
-        with col3:
-            st.metric("🔴 부정", f"{neg_ratio:.0f}%")
-
-        with col4:
-            st.metric("⚪ 중립", f"{neu_ratio:.0f}%")
+        st.markdown(f"""
+        <div style='background: linear-gradient(135deg, {main_color}22, {main_color}11);
+                    padding: 20px; border-radius: 15px; margin: 15px 0;
+                    border: 1px solid {main_color}44;'>
+            <div style='display: flex; justify-content: space-between; align-items: center;'>
+                <div>
+                    <h3 style='margin: 0; color: white;'>{main_emoji} {title} 뉴스 감성 분석</h3>
+                    <p style='margin: 8px 0 0 0; color: rgba(255,255,255,0.6);'>
+                        총 {total}건 분석 완료
+                    </p>
+                </div>
+                <div style='text-align: right;'>
+                    <span style='color: {main_color}; font-weight: bold; font-size: 1.8rem;'>{main_text}</span>
+                </div>
+            </div>
+            <div style='display: flex; gap: 20px; margin-top: 15px;'>
+                <div style='flex: 1; background: rgba(0,200,81,0.15); padding: 10px; border-radius: 8px; text-align: center;'>
+                    <div style='color: #00C851; font-size: 1.5rem; font-weight: bold;'>{pos}</div>
+                    <div style='color: rgba(255,255,255,0.6); font-size: 0.8rem;'>긍정 ({pos_ratio:.0f}%)</div>
+                </div>
+                <div style='flex: 1; background: rgba(255,68,68,0.15); padding: 10px; border-radius: 8px; text-align: center;'>
+                    <div style='color: #ff4444; font-size: 1.5rem; font-weight: bold;'>{neg}</div>
+                    <div style='color: rgba(255,255,255,0.6); font-size: 0.8rem;'>부정 ({neg_ratio:.0f}%)</div>
+                </div>
+                <div style='flex: 1; background: rgba(255,187,51,0.15); padding: 10px; border-radius: 8px; text-align: center;'>
+                    <div style='color: #ffbb33; font-size: 1.5rem; font-weight: bold;'>{neu}</div>
+                    <div style='color: rgba(255,255,255,0.6); font-size: 0.8rem;'>중립</div>
+                </div>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
 
 
 def _calculate_technical_signals(df: pd.DataFrame) -> dict:
@@ -504,40 +511,18 @@ def _calculate_technical_signals(df: pd.DataFrame) -> dict:
         # 이평선 추세
         ma5 = close.rolling(5).mean()
         ma20 = close.rolling(20).mean()
-        ma60 = close.rolling(60).mean() if len(close) >= 60 else ma20
 
         if not pd.isna(ma5.iloc[-1]) and not pd.isna(ma20.iloc[-1]):
-            if ma5.iloc[-1] > ma20.iloc[-1]:
-                signals['ma_trend'] = '단기 상승세'
-            else:
-                signals['ma_trend'] = '단기 하락세'
+            signals['ma_trend'] = '상승세 📈' if ma5.iloc[-1] > ma20.iloc[-1] else '하락세 📉'
 
-        # 볼린저밴드 위치
-        bb_mid = close.rolling(20).mean()
-        bb_std = close.rolling(20).std()
-        bb_upper = bb_mid + 2 * bb_std
-        bb_lower = bb_mid - 2 * bb_std
-
-        current = close.iloc[-1]
-        if not pd.isna(bb_upper.iloc[-1]):
-            if current > bb_upper.iloc[-1]:
-                signals['bb_position'] = '상단 돌파 (과매수)'
-            elif current < bb_lower.iloc[-1]:
-                signals['bb_position'] = '하단 돌파 (과매도)'
-            else:
-                signals['bb_position'] = '밴드 내'
-
-        # 거래량 추세
-        if 'volume' in df.columns:
-            vol = df['volume'].astype(float)
-            vol_ma = vol.rolling(20).mean()
-            if not pd.isna(vol_ma.iloc[-1]):
-                if vol.iloc[-1] > vol_ma.iloc[-1] * 1.5:
-                    signals['volume_trend'] = '거래량 급증'
-                elif vol.iloc[-1] < vol_ma.iloc[-1] * 0.5:
-                    signals['volume_trend'] = '거래량 감소'
-                else:
-                    signals['volume_trend'] = '평균 수준'
+        # RSI 상태
+        rsi_val = signals.get('rsi', 50)
+        if rsi_val > 70:
+            signals['rsi_status'] = '과매수 ⚠️'
+        elif rsi_val < 30:
+            signals['rsi_status'] = '과매도 💡'
+        else:
+            signals['rsi_status'] = '중립'
 
     except Exception as e:
         print(f"기술적 지표 계산 오류: {e}")
@@ -551,73 +536,82 @@ def _display_recommendation_result(
 ):
     """AI 추천 결과 표시"""
 
-    # 추천 색상
     rec = recommendation.get('recommendation', '관망')
+    confidence = recommendation.get('confidence', 3)
+
     if rec == '매수':
         rec_color = '#00C851'
-        rec_bg = 'rgba(0, 200, 81, 0.1)'
+        rec_bg = 'rgba(0, 200, 81, 0.15)'
+        rec_emoji = '📈'
     elif rec == '매도':
         rec_color = '#ff4444'
-        rec_bg = 'rgba(255, 68, 68, 0.1)'
+        rec_bg = 'rgba(255, 68, 68, 0.15)'
+        rec_emoji = '📉'
     else:
         rec_color = '#ffbb33'
-        rec_bg = 'rgba(255, 187, 51, 0.1)'
+        rec_bg = 'rgba(255, 187, 51, 0.15)'
+        rec_emoji = '⏸️'
 
-    confidence = recommendation.get('confidence', 3)
     stars = "⭐" * confidence + "☆" * (5 - confidence)
+    price_color = '#00C851' if price_change >= 0 else '#ff4444'
 
-    if is_mobile:
-        st.markdown(f"""
-        ### {stock_name} ({stock_code})
-
-        **현재가:** {current_price:,.0f}원 ({price_change:+.2f}%)
-
-        ---
-
-        **🤖 AI 추천: {rec}**
-
-        신뢰도: {stars}
-
-        {recommendation.get('reason', '')}
-        """)
-    else:
-        st.markdown(f"""
-        <div style='background: {rec_bg}; border: 2px solid {rec_color}; border-radius: 15px; padding: 1.5rem; margin: 1rem 0;'>
-            <div style='display: flex; justify-content: space-between; align-items: center;'>
-                <div>
-                    <h3 style='margin: 0; color: white;'>{stock_name} ({stock_code})</h3>
-                    <p style='color: rgba(255,255,255,0.7); margin: 0.5rem 0;'>
-                        현재가: <strong>{current_price:,.0f}원</strong>
-                        (<span style='color: {"#00C851" if price_change > 0 else "#ff4444"}'>{price_change:+.2f}%</span>)
-                    </p>
+    # 메인 추천 카드
+    st.markdown(f"""
+    <div style='background: {rec_bg}; border: 2px solid {rec_color}; border-radius: 15px;
+                padding: {"15px" if is_mobile else "20px"}; margin: 15px 0;'>
+        <div style='display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap;'>
+            <div>
+                <h3 style='margin: 0; color: white;'>{stock_name}</h3>
+                <p style='margin: 5px 0; color: rgba(255,255,255,0.7);'>
+                    {current_price:,.0f}원
+                    <span style='color: {price_color};'>({price_change:+.2f}%)</span>
+                </p>
+            </div>
+            <div style='text-align: right;'>
+                <div style='font-size: {"1.5rem" if is_mobile else "2rem"}; color: {rec_color}; font-weight: bold;'>
+                    {rec_emoji} {rec}
                 </div>
-                <div style='text-align: right;'>
-                    <span style='font-size: 2rem; color: {rec_color}; font-weight: bold;'>{rec}</span>
-                    <p style='margin: 0; color: rgba(255,255,255,0.7);'>신뢰도: {stars}</p>
-                </div>
+                <div style='color: rgba(255,255,255,0.6); font-size: 0.9rem;'>신뢰도: {stars}</div>
             </div>
         </div>
-        """, unsafe_allow_html=True)
+    </div>
+    """, unsafe_allow_html=True)
 
-        # 상세 분석
+    # 상세 정보 (PC만 2컬럼)
+    if is_mobile:
+        # 기술적 분석
+        st.markdown("**📊 기술적 분석**")
+        for key, value in technical_signals.items():
+            if key not in ['macd', 'macd_signal', 'rsi']:
+                st.caption(f"• {key}: {value}")
+
+        # 뉴스 감성
+        st.markdown("**📰 뉴스 감성**")
+        st.caption(f"• 전체: {_sentiment_korean(news_sentiment.get('overall_sentiment', 'neutral'))}")
+        st.caption(f"• 긍정: {news_sentiment.get('positive_ratio', 0):.0f}% / 부정: {news_sentiment.get('negative_ratio', 0):.0f}%")
+    else:
         col1, col2 = st.columns(2)
 
         with col1:
             st.markdown("#### 📊 기술적 분석")
             for key, value in technical_signals.items():
                 if key not in ['macd', 'macd_signal']:
-                    st.write(f"• **{key}:** {value}")
+                    if key == 'rsi':
+                        st.write(f"• **RSI:** {value:.1f} ({technical_signals.get('rsi_status', '')})")
+                    else:
+                        st.write(f"• **{key}:** {value}")
 
         with col2:
             st.markdown("#### 📰 뉴스 감성")
-            st.write(f"• 전체: {_sentiment_korean(news_sentiment.get('overall_sentiment', 'neutral'))}")
-            st.write(f"• 긍정: {news_sentiment.get('positive_ratio', 0):.0f}%")
-            st.write(f"• 부정: {news_sentiment.get('negative_ratio', 0):.0f}%")
+            st.write(f"• **전체:** {_sentiment_korean(news_sentiment.get('overall_sentiment', 'neutral'))}")
+            st.write(f"• **긍정:** {news_sentiment.get('positive_ratio', 0):.0f}%")
+            st.write(f"• **부정:** {news_sentiment.get('negative_ratio', 0):.0f}%")
 
-        # AI 분석 근거
+    # AI 분석 근거
+    reason = recommendation.get('reason', '')
+    if reason:
         st.markdown("---")
-        st.markdown("#### 🤖 AI 분석 근거")
-        st.info(recommendation.get('reason', '분석 정보 없음'))
+        st.info(f"🤖 **AI 분석:** {reason}")
 
-        if recommendation.get('is_fallback'):
-            st.caption("ℹ️ 이 분석은 규칙 기반입니다. Gemini API 연결 시 더 정확한 분석이 가능합니다.")
+    if recommendation.get('is_fallback'):
+        st.caption("ℹ️ 규칙 기반 분석입니다. Gemini API 연결 시 더 정확한 분석이 가능합니다.")
