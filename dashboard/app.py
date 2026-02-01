@@ -34,6 +34,12 @@ st.markdown("""
 </head>
 """, unsafe_allow_html=True)
 
+# URL 파라미터로 모바일 모드 자동 활성화 (?mobile=1 또는 ?m=1)
+query_params = st.query_params
+if query_params.get('mobile') == '1' or query_params.get('m') == '1':
+    st.session_state['mobile_mode'] = True
+    st.session_state['mobile_url_mode'] = True  # URL로 접속했음을 표시
+
 # 로그인 모듈 import
 from views.login import render_login_page, check_login, render_logout_button, get_session_api
 
@@ -490,6 +496,26 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+# 모바일 URL 모드일 때 사이드바 숨기기 CSS 추가
+if st.session_state.get('mobile_url_mode', False):
+    st.markdown("""
+    <style>
+        /* 모바일 URL 모드: 사이드바 완전히 숨기기 */
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+        .main .block-container {
+            padding-left: 1rem !important;
+            padding-right: 1rem !important;
+            max-width: 100% !important;
+        }
+        /* 상단 여백 축소 */
+        .stApp > header {
+            display: none !important;
+        }
+    </style>
+    """, unsafe_allow_html=True)
+
 # 사이드바 헤더
 st.sidebar.markdown("""
 <div style='text-align: center; padding: 1.5rem 0;'>
@@ -609,16 +635,33 @@ st.sidebar.markdown("""
 
 # 모바일 모드일 때 상단 퀵 메뉴 표시
 if st.session_state.get('mobile_mode', False):
-    st.markdown("#### 📱 퀵 메뉴")
-    mobile_menu_cols = st.columns(3)
+    # 모바일 URL 모드일 때 더 완전한 네비게이션 표시
+    if st.session_state.get('mobile_url_mode', False):
+        st.markdown("""
+        <div style='background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                    padding: 0.8rem 1rem; margin: -1rem -1rem 1rem -1rem;
+                    display: flex; align-items: center; justify-content: space-between;'>
+            <span style='font-size: 1.3rem; color: white; font-weight: 700;'>🎮 YJ 놀이터</span>
+            <span style='color: rgba(255,255,255,0.7); font-size: 0.8rem;'>모바일</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    # 모바일 메뉴 (5개로 확장)
+    mobile_menu_cols = st.columns(5)
     mobile_menus = [
         ("🏠", "home", "홈"),
         ("📊", "chart_strategy", "차트"),
+        ("🎯", "strategy", "전략"),
         ("💹", "quant_trading", "매매"),
+        ("⚙️", "settings", "설정"),
     ]
     for i, (icon, key, label) in enumerate(mobile_menus):
         with mobile_menu_cols[i]:
-            if st.button(f"{icon}", key=f"mobile_menu_{key}", help=label, use_container_width=True):
+            # 현재 선택된 메뉴 강조
+            is_selected = menu_options.get(st.session_state.get('menu_selection', '🏠 홈')) == key
+            btn_style = "primary" if is_selected else "secondary"
+            if st.button(f"{icon}\n{label}", key=f"mobile_menu_{key}", use_container_width=True,
+                        type=btn_style if is_selected else "secondary"):
                 # 해당 메뉴로 이동
                 menu_keys = list(menu_options.keys())
                 menu_values = list(menu_options.values())
