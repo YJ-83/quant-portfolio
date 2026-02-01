@@ -72,6 +72,7 @@ class GeminiAnalyzer:
         self.use_new_api = False
 
         self.init_error = None
+        self.last_error = None  # 마지막 API 호출 오류
 
         if self.api_key and GEMINI_AVAILABLE:
             if GEMINI_NEW_API:
@@ -110,10 +111,12 @@ class GeminiAnalyzer:
     def _generate_content(self, prompt: str, max_tokens: int = 150) -> Optional[str]:
         """통합 컨텐츠 생성 - 여러 모델 시도"""
         if not self.is_available():
+            self.last_error = "API 사용 불가"
             return None
 
         # 시도할 모델 목록 (쿼타 초과 시 대체 모델 시도)
-        models_to_try = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.0-flash-lite']
+        models_to_try = ['gemini-2.0-flash', 'gemini-1.5-flash', 'gemini-2.0-flash-lite']
+        errors = []
 
         if self.use_new_api:
             # 새 API - 여러 모델 순차 시도
@@ -129,9 +132,11 @@ class GeminiAnalyzer:
                         }
                     )
                     print(f"[Gemini] {model_name} 성공!")
+                    self.last_error = None
                     return response.text
                 except Exception as e:
                     error_str = str(e)
+                    errors.append(f"{model_name}: {error_str[:100]}")
                     if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
                         print(f"[Gemini] {model_name} 쿼타 초과, 다음 모델 시도...")
                         continue  # 다음 모델 시도
@@ -139,7 +144,8 @@ class GeminiAnalyzer:
                         print(f"[Gemini] {model_name} 오류: {e}")
                         continue  # 다른 에러도 다음 모델 시도
             # 모든 모델 실패
-            print("[Gemini] 모든 모델 실패")
+            self.last_error = " | ".join(errors)
+            print(f"[Gemini] 모든 모델 실패: {self.last_error}")
             return None
         else:
             # 구 API
@@ -314,6 +320,7 @@ class GeminiAnalyzer:
     def _fallback_recommendation(self, technical_signals: Dict, news_sentiment: Dict) -> Dict:
         """규칙 기반 추천"""
         score = 0
+        api_error = getattr(self, 'last_error', None)
 
         # RSI
         rsi = technical_signals.get('rsi', 50)
@@ -342,11 +349,16 @@ class GeminiAnalyzer:
         else:
             recommendation = '관망'
 
+        reason = '기술적 지표와 뉴스 감성을 종합한 규칙 기반 분석입니다.'
+        if api_error:
+            reason += f' (API 오류: {api_error[:100]})'
+
         return {
             'recommendation': recommendation,
             'confidence': 2,
-            'reason': '기술적 지표와 뉴스 감성을 종합한 규칙 기반 분석입니다.',
+            'reason': reason,
             'is_fallback': True,
+            'api_error': api_error,
             'timestamp': datetime.now().isoformat()
         }
 

@@ -599,8 +599,11 @@ def _display_recommendation_result(
         """, unsafe_allow_html=True)
 
     if recommendation.get('is_fallback'):
-        st.markdown("""
+        api_error = recommendation.get('api_error', '')
+        error_info = f"<br><small style='color: #ff6b6b;'>API 오류: {api_error[:150]}</small>" if api_error else ""
+        st.markdown(f"""
         <div style='background: #2d2d44; padding: 10px 15px; border-radius: 8px; margin-top: 10px;'>
             <span style='color: #aaa;'>ℹ️ 규칙 기반 분석입니다. Gemini API 연결 시 더 정확한 분석이 가능합니다.</span>
+            {error_info}
         </div>
         """, unsafe_allow_html=True)
