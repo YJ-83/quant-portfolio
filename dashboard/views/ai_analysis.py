@@ -323,6 +323,15 @@ def _render_ai_recommendation_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler
                     }
                 )
 
+                # 디버깅: API 호출 후 상태 표시
+                with st.expander("🔧 API 디버깅 정보", expanded=True):
+                    st.write(f"- is_available: {analyzer.is_available()}")
+                    st.write(f"- use_new_api: {analyzer.use_new_api}")
+                    st.write(f"- initialized: {analyzer.initialized}")
+                    st.write(f"- last_error: {getattr(analyzer, 'last_error', 'None')}")
+                    st.write(f"- is_fallback: {recommendation.get('is_fallback', False)}")
+                    st.write(f"- api_error: {recommendation.get('api_error', 'None')}")
+
                 # 결과 표시
                 _display_recommendation_result(
                     stock_name, stock_code, current_price, price_change,
