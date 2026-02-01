@@ -26,6 +26,24 @@ _env_path = Path(__file__).parent.parent / ".env"
 if _env_path.exists():
     load_dotenv(_env_path, override=True)
 
+# Streamlit secrets 지원 함수
+def _get_secret(key: str, default: str = None) -> str:
+    """환경변수 또는 Streamlit secrets에서 값 가져오기"""
+    # 1. 환경변수 먼저 확인
+    value = os.getenv(key)
+    if value:
+        return value
+
+    # 2. Streamlit secrets 확인 (Streamlit Cloud 배포 시)
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets') and key in st.secrets:
+            return st.secrets[key]
+    except Exception:
+        pass
+
+    return default
+
 from config.settings import settings
 
 # 토큰 캐시 파일 경로
@@ -60,10 +78,12 @@ class KoreaInvestmentAPI:
             account_no: 계좌번호 (환경변수 KIS_ACCOUNT_NO로도 설정 가능)
             is_mock: True면 모의투자 서버 사용
         """
-        self.app_key = app_key or os.getenv("KIS_APP_KEY")
-        self.app_secret = app_secret or os.getenv("KIS_APP_SECRET")
-        self.account_no = account_no or os.getenv("KIS_ACCOUNT_NO")
-        self.is_mock = is_mock
+        self.app_key = app_key or _get_secret("KIS_APP_KEY")
+        self.app_secret = app_secret or _get_secret("KIS_APP_SECRET")
+        self.account_no = account_no or _get_secret("KIS_ACCOUNT_NO")
+        # is_mock 환경변수/secrets 지원
+        is_mock_env = _get_secret("KIS_IS_MOCK", "false")
+        self.is_mock = is_mock or (is_mock_env.lower() == "true")
 
         self.base_url = self.BASE_URL_MOCK if is_mock else self.BASE_URL_REAL
         self.access_token = None
