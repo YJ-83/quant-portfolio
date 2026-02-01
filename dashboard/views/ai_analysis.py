@@ -169,45 +169,32 @@ def _render_stock_news_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_mo
                         sentiment = detail['sentiment']
                         source = detail.get('source', '')
                         date = detail.get('date', '')
+                        title = detail.get('title', '제목 없음')
 
                         if sentiment == 'positive':
                             color = '#00C851'
+                            bg_color = '#1a3d1a'
                             emoji = '🟢'
                             badge = '긍정'
                         elif sentiment == 'negative':
                             color = '#ff4444'
+                            bg_color = '#3d1a1a'
                             emoji = '🔴'
                             badge = '부정'
                         else:
                             color = '#ffbb33'
+                            bg_color = '#3d3d1a'
                             emoji = '⚪'
                             badge = '중립'
 
-                        if is_mobile:
-                            st.markdown(f"""
-                            <div style='background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;
-                                        margin-bottom: 8px; border-left: 3px solid {color};'>
-                                <div style='font-size: 0.85rem; color: white;'>{emoji} {detail['title'][:45]}...</div>
-                                <div style='font-size: 0.7rem; color: rgba(255,255,255,0.5); margin-top: 4px;'>
-                                    {source} · {date} · <span style='color: {color};'>{badge}</span>
-                                </div>
-                            </div>
-                            """, unsafe_allow_html=True)
-                        else:
-                            st.markdown(f"""
-                            <div style='background: rgba(255,255,255,0.05); padding: 12px 16px; border-radius: 10px;
-                                        margin-bottom: 10px; border-left: 4px solid {color};
-                                        display: flex; justify-content: space-between; align-items: center;'>
-                                <div>
-                                    <div style='font-size: 0.95rem; color: white;'>{emoji} {detail['title']}</div>
-                                    <div style='font-size: 0.8rem; color: rgba(255,255,255,0.5); margin-top: 4px;'>
-                                        📰 {source} · 📅 {date}
-                                    </div>
-                                </div>
-                                <span style='background: {color}22; color: {color}; padding: 4px 10px;
-                                             border-radius: 12px; font-size: 0.75rem; font-weight: 600;'>{badge}</span>
-                            </div>
-                            """, unsafe_allow_html=True)
+                        # Streamlit 네이티브 컴포넌트 사용 (가시성 개선)
+                        with st.container():
+                            col_news, col_badge = st.columns([5, 1])
+                            with col_news:
+                                st.markdown(f"**{emoji} {title}**")
+                                st.caption(f"📰 {source} · 📅 {date}")
+                            with col_badge:
+                                st.markdown(f"<span style='background: {color}33; color: {color}; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem; font-weight: bold;'>{badge}</span>", unsafe_allow_html=True)
 
                     # AI 심층 분석 버튼 (PC만)
                     if not is_mobile and analyzer.is_available():
@@ -321,36 +308,31 @@ def _render_market_news_tab(analyzer: GeminiAnalyzer, crawler: NewsCrawler, is_m
             for i, news in enumerate(market_news[:12]):
                 sentiment_result = simple_sentiment_analysis(news['title'])
                 sentiment = sentiment_result['sentiment']
+                title = news.get('title', '제목 없음')
+                source = news.get('source', '')
+                date = news.get('date', '')
 
                 if sentiment == 'positive':
                     color = '#00C851'
                     emoji = '🟢'
+                    badge = '긍정'
                 elif sentiment == 'negative':
                     color = '#ff4444'
                     emoji = '🔴'
+                    badge = '부정'
                 else:
                     color = '#ffbb33'
                     emoji = '⚪'
+                    badge = '중립'
 
-                if is_mobile:
-                    st.markdown(f"""
-                    <div style='padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.1);'>
-                        <span style='color: {color};'>{emoji}</span>
-                        <span style='color: white; font-size: 0.85rem;'>{news['title'][:40]}...</span>
-                        <span style='color: rgba(255,255,255,0.4); font-size: 0.7rem;'> {news.get('source', '')}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
-                else:
-                    st.markdown(f"""
-                    <div style='padding: 10px 0; border-bottom: 1px solid rgba(255,255,255,0.1);
-                                display: flex; justify-content: space-between; align-items: center;'>
-                        <div>
-                            <span style='color: {color};'>{emoji}</span>
-                            <span style='color: white;'>{news['title']}</span>
-                        </div>
-                        <span style='color: rgba(255,255,255,0.5); font-size: 0.8rem;'>{news.get('source', '')} · {news.get('date', '')}</span>
-                    </div>
-                    """, unsafe_allow_html=True)
+                # Streamlit 네이티브 컴포넌트 사용 (가시성 개선)
+                with st.container():
+                    col_news, col_badge = st.columns([5, 1])
+                    with col_news:
+                        st.markdown(f"**{emoji} {title}**")
+                        st.caption(f"📰 {source} · 📅 {date}")
+                    with col_badge:
+                        st.markdown(f"<span style='background: {color}33; color: {color}; padding: 4px 10px; border-radius: 12px; font-size: 0.8rem;'>{badge}</span>", unsafe_allow_html=True)
         else:
             st.info("시장 뉴스를 불러오는 중...")
 
@@ -414,7 +396,7 @@ def _sentiment_korean(sentiment: str) -> str:
 
 
 def _display_sentiment_summary(batch_result: dict, is_mobile: bool, title: str = ""):
-    """감성 분석 요약 카드 표시"""
+    """감성 분석 요약 카드 표시 - Streamlit 네이티브"""
     overall = batch_result['overall_sentiment']
     pos = batch_result.get('positive_count', 0)
     neg = batch_result.get('negative_count', 0)
@@ -425,64 +407,32 @@ def _display_sentiment_summary(batch_result: dict, is_mobile: bool, title: str =
     neg_ratio = batch_result['negative_ratio']
 
     if overall == 'positive':
-        main_color = '#00C851'
         main_emoji = '🟢'
         main_text = '긍정적'
     elif overall == 'negative':
-        main_color = '#ff4444'
         main_emoji = '🔴'
         main_text = '부정적'
     else:
-        main_color = '#ffbb33'
         main_emoji = '⚪'
         main_text = '중립적'
 
-    if is_mobile:
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, {main_color}22, {main_color}11);
-                    padding: 12px; border-radius: 10px; margin: 10px 0;
-                    border: 1px solid {main_color}44;'>
-            <div style='display: flex; justify-content: space-between; align-items: center;'>
-                <span style='font-size: 1.2rem;'>{main_emoji} {title} 뉴스 감성</span>
-                <span style='color: {main_color}; font-weight: bold; font-size: 1.1rem;'>{main_text}</span>
-            </div>
-            <div style='margin-top: 8px; font-size: 0.8rem; color: rgba(255,255,255,0.7);'>
-                🟢 {pos}건 · 🔴 {neg}건 · ⚪ {neu}건 (총 {total}건)
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown(f"""
-        <div style='background: linear-gradient(135deg, {main_color}22, {main_color}11);
-                    padding: 20px; border-radius: 15px; margin: 15px 0;
-                    border: 1px solid {main_color}44;'>
-            <div style='display: flex; justify-content: space-between; align-items: center;'>
-                <div>
-                    <h3 style='margin: 0; color: white;'>{main_emoji} {title} 뉴스 감성 분석</h3>
-                    <p style='margin: 8px 0 0 0; color: rgba(255,255,255,0.6);'>
-                        총 {total}건 분석 완료
-                    </p>
-                </div>
-                <div style='text-align: right;'>
-                    <span style='color: {main_color}; font-weight: bold; font-size: 1.8rem;'>{main_text}</span>
-                </div>
-            </div>
-            <div style='display: flex; gap: 20px; margin-top: 15px;'>
-                <div style='flex: 1; background: rgba(0,200,81,0.15); padding: 10px; border-radius: 8px; text-align: center;'>
-                    <div style='color: #00C851; font-size: 1.5rem; font-weight: bold;'>{pos}</div>
-                    <div style='color: rgba(255,255,255,0.6); font-size: 0.8rem;'>긍정 ({pos_ratio:.0f}%)</div>
-                </div>
-                <div style='flex: 1; background: rgba(255,68,68,0.15); padding: 10px; border-radius: 8px; text-align: center;'>
-                    <div style='color: #ff4444; font-size: 1.5rem; font-weight: bold;'>{neg}</div>
-                    <div style='color: rgba(255,255,255,0.6); font-size: 0.8rem;'>부정 ({neg_ratio:.0f}%)</div>
-                </div>
-                <div style='flex: 1; background: rgba(255,187,51,0.15); padding: 10px; border-radius: 8px; text-align: center;'>
-                    <div style='color: #ffbb33; font-size: 1.5rem; font-weight: bold;'>{neu}</div>
-                    <div style='color: rgba(255,255,255,0.6); font-size: 0.8rem;'>중립</div>
-                </div>
-            </div>
-        </div>
-        """, unsafe_allow_html=True)
+    # Streamlit 네이티브 컴포넌트 사용
+    st.markdown(f"### {main_emoji} {title} 뉴스 감성 분석")
+
+    col_title, col_result = st.columns([3, 1])
+    with col_title:
+        st.caption(f"총 {total}건 분석 완료")
+    with col_result:
+        st.markdown(f"**{main_text}**")
+
+    # 감성 비율 카드
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric(label="🟢 긍정", value=f"{pos}", delta=f"{pos_ratio:.0f}%")
+    with col2:
+        st.metric(label="🔴 부정", value=f"{neg}", delta=f"{neg_ratio:.0f}%", delta_color="inverse")
+    with col3:
+        st.metric(label="⚪ 중립", value=f"{neu}")
 
 
 def _calculate_technical_signals(df: pd.DataFrame) -> dict:
