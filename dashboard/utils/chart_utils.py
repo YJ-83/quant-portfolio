@@ -665,32 +665,44 @@ def render_investor_trend(api, code: str, name: str = "", days: int = 5, key_pre
 
 
 def _render_investor_daily_compact(df, key_prefix: str) -> None:
-    """투자자 동향 일별 컴팩트 표시 (모바일용) - Streamlit 네이티브 사용"""
+    """투자자 동향 일별 컴팩트 표시 (모바일용) - 한 줄로 표시"""
     def format_num(n):
         if abs(n) >= 1_000_000:
             return f"{n/1_000_000:+.1f}M"
         elif abs(n) >= 1_000:
-            return f"{n/1_000:+.1f}K"
+            return f"{n/1_000:+.0f}K"
         else:
-            return f"{n:+,}"
+            return f"{n:+.0f}"
 
     def get_icon(n):
-        return "🟢" if n > 0 else "🔴" if n < 0 else "⚪"
+        return "▲" if n > 0 else "▼" if n < 0 else "-"
 
-    st.caption("📊 투자자 동향")
+    def get_color(n):
+        return "#e74c3c" if n > 0 else "#3498db" if n < 0 else "#888"
 
-    for idx, row in df.iterrows():
-        date_str = str(row['date']).replace('2026.', '').replace('2025.', '')  # 연도 제거
+    # 최근 5일 데이터를 한 줄로 표시
+    rows_html = ""
+    for idx, row in df.head(5).iterrows():
+        date_str = str(row['date']).replace('2026.', '').replace('2025.', '').replace('.', '/')
         inst = row['institution']
         frgn = row['foreign']
+        inst_color = get_color(inst)
+        frgn_color = get_color(frgn)
 
-        cols = st.columns([1, 2, 2])
-        with cols[0]:
-            st.caption(date_str)
-        with cols[1]:
-            st.caption(f"기관 {get_icon(inst)} {format_num(inst)}")
-        with cols[2]:
-            st.caption(f"외인 {get_icon(frgn)} {format_num(frgn)}")
+        rows_html += f"""
+        <div style='display:flex; justify-content:space-between; padding:2px 0; border-bottom:1px solid #eee; font-size:0.75rem;'>
+            <span style='color:#666; min-width:45px;'>{date_str}</span>
+            <span style='color:{inst_color};'>기관 {get_icon(inst)}{format_num(inst)}</span>
+            <span style='color:{frgn_color};'>외인 {get_icon(frgn)}{format_num(frgn)}</span>
+        </div>
+        """
+
+    st.markdown(f"""
+    <div style='background:#f8f9fa; border-radius:8px; padding:8px; margin:4px 0;'>
+        <div style='font-size:0.8rem; font-weight:600; margin-bottom:4px; color:#333;'>📊 투자자 동향</div>
+        {rows_html}
+    </div>
+    """, unsafe_allow_html=True)
 
 
 def _render_investor_daily_full(df, key_prefix: str) -> None:
