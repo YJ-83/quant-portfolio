@@ -3516,8 +3516,7 @@ def _render_comprehensive_recommendation_section(api):
     # ========== 개별 종목 검색 섹션 ==========
     st.markdown("### 🔎 개별 종목 점수 조회")
 
-    # 전체 종목 리스트 로드 (캐싱됨)
-    @st.cache_data(ttl=3600)
+    # 전체 종목 리스트 로드 (캐싱 비활성화 - stock_list.py에서 자체 캐싱)
     def _load_all_stocks_for_search():
         kospi = get_kospi_stocks()
         kosdaq = get_kosdaq_stocks()
@@ -3527,7 +3526,15 @@ def _render_comprehensive_recommendation_section(api):
         stock_map = {f"{name} ({code})": (code, name) for code, name in all_stocks}
         return stock_options, stock_map
 
-    stock_options, stock_map = _load_all_stocks_for_search()
+    # 세션 캐시 사용 (빈 결과면 재로드)
+    if 'stock_options_cache' not in st.session_state or len(st.session_state.get('stock_options_cache', [])) <= 1:
+        stock_options, stock_map = _load_all_stocks_for_search()
+        if len(stock_options) > 1:  # 종목이 있을 때만 캐시
+            st.session_state['stock_options_cache'] = stock_options
+            st.session_state['stock_map_cache'] = stock_map
+    else:
+        stock_options = st.session_state['stock_options_cache']
+        stock_map = st.session_state['stock_map_cache']
 
     # selectbox로 자동완성 검색 (Streamlit의 selectbox는 검색 기능 내장)
     col1, col2 = st.columns([3, 1])
