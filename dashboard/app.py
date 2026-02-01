@@ -533,7 +533,7 @@ menu_options = {
     "📂 섹터 분류": "sector",
     "📊 차트 전략": "chart_strategy",
     "📈 백테스트": "backtest",
-    "🤖 AI 분석": "ai_analysis",
+    # "🤖 AI 분석": "ai_analysis",  # Gemini API 쿼타 문제로 임시 비활성화
     "💹 퀀트 매매": "quant_trading",
     "💼 포트폴리오": "portfolio",
     "⚙️ 설정": "settings"
@@ -657,7 +657,7 @@ if st.session_state.get('mobile_mode', False):
         ("📊", "chart_strategy", "차트"),
         ("🎯", "strategy", "전략"),
         ("📈", "backtest", "백테"),
-        ("🤖", "ai_analysis", "AI"),
+        # ("🤖", "ai_analysis", "AI"),  # Gemini API 쿼타 문제로 임시 비활성화
         ("💹", "quant_trading", "매매"),
         ("⚙️", "settings", "설정"),
     ]
@@ -694,9 +694,9 @@ elif menu == "📊 차트 전략":
 elif menu == "📈 백테스트":
     from views.backtest import render_backtest
     render_backtest()
-elif menu == "🤖 AI 분석":
-    from views.ai_analysis import render_ai_analysis
-    render_ai_analysis()
+# elif menu == "🤖 AI 분석":  # Gemini API 쿼타 문제로 임시 비활성화
+#     from views.ai_analysis import render_ai_analysis
+#     render_ai_analysis()
 elif menu == "💹 퀀트 매매":
     from views.quant_trading import render_quant_trading
     render_quant_trading()
