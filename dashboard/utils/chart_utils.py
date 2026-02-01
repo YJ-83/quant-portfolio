@@ -622,28 +622,28 @@ def render_investor_trend(api, code: str, name: str = "", days: int = 5, key_pre
         days: 조회 기간 (기본 5일)
         key_prefix: 위젯 키 접두어
     """
-    # 기본 검증
-    if api is None:
-        st.info("API 연결이 필요합니다.")
-        return
-
-    # API에 get_investor_trading 메서드가 있는지 확인
-    if not hasattr(api, 'get_investor_trading'):
-        # 세션 API 객체가 오래된 경우 - 자동 갱신 시도
-        try:
-            from data.kis_api import KoreaInvestmentAPI
-            new_api = KoreaInvestmentAPI()
-            if new_api.connect():
-                st.session_state['kis_api'] = new_api
-                api = new_api
-            else:
-                st.info("API 재연결이 필요합니다. 페이지를 새로고침해주세요.")
-                return
-        except Exception:
-            st.info("API 초기화 실패")
+    try:
+        # 기본 검증
+        if api is None:
+            st.caption("ℹ️ API 연결 시 투자자 동향을 확인할 수 있습니다.")
             return
 
-    try:
+        # API에 get_investor_trading 메서드가 있는지 확인
+        if not hasattr(api, 'get_investor_trading'):
+            # 세션 API 객체가 오래된 경우 - 자동 갱신 시도
+            try:
+                from data.kis_api import KoreaInvestmentAPI
+                new_api = KoreaInvestmentAPI()
+                if new_api.connect():
+                    st.session_state['kis_api'] = new_api
+                    api = new_api
+                else:
+                    st.caption("ℹ️ API 연결 시 투자자 동향을 확인할 수 있습니다.")
+                    return
+            except Exception:
+                st.caption("ℹ️ API 연결 시 투자자 동향을 확인할 수 있습니다.")
+                return
+
         # 일별 투자자 동향 조회
         df = api.get_investor_trading(code, count=days)
 
@@ -660,7 +660,8 @@ def render_investor_trend(api, code: str, name: str = "", days: int = 5, key_pre
             _render_investor_daily_full(df, key_prefix)
 
     except Exception as e:
-        st.caption(f"데이터 조회 중 오류: {str(e)[:30]}")
+        # 에러 시 조용히 처리 (사용자에게 불필요한 에러 표시 방지)
+        st.caption("ℹ️ 투자자 동향 데이터를 불러올 수 없습니다.")
 
 
 def _render_investor_daily_compact(df, key_prefix: str) -> None:
