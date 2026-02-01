@@ -94,34 +94,35 @@ class GeminiAnalyzer:
         # 시도할 모델 목록 (쿼타 초과 시 대체 모델 시도)
         models_to_try = ['gemini-2.0-flash', 'gemini-flash-latest', 'gemini-2.0-flash-lite']
 
-        try:
-            if self.use_new_api:
-                # 새 API - 여러 모델 시도
-                last_error = None
-                for model_name in models_to_try:
-                    try:
-                        response = self.client.models.generate_content(
-                            model=model_name,
-                            contents=prompt,
-                            config={
-                                'max_output_tokens': max_tokens,
-                                'temperature': 0.3
-                            }
-                        )
-                        return response.text
-                    except Exception as e:
-                        last_error = e
-                        error_str = str(e)
-                        if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
-                            print(f"[Gemini] {model_name} 쿼타 초과, 다음 모델 시도...")
-                            continue
-                        else:
-                            raise e
-                # 모든 모델 실패
-                if last_error:
-                    raise last_error
-            else:
-                # 구 API
+        if self.use_new_api:
+            # 새 API - 여러 모델 순차 시도
+            for model_name in models_to_try:
+                try:
+                    print(f"[Gemini] {model_name} 시도 중...")
+                    response = self.client.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config={
+                            'max_output_tokens': max_tokens,
+                            'temperature': 0.3
+                        }
+                    )
+                    print(f"[Gemini] {model_name} 성공!")
+                    return response.text
+                except Exception as e:
+                    error_str = str(e)
+                    if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
+                        print(f"[Gemini] {model_name} 쿼타 초과, 다음 모델 시도...")
+                        continue  # 다음 모델 시도
+                    else:
+                        print(f"[Gemini] {model_name} 오류: {e}")
+                        continue  # 다른 에러도 다음 모델 시도
+            # 모든 모델 실패
+            print("[Gemini] 모든 모델 실패")
+            return None
+        else:
+            # 구 API
+            try:
                 response = self.client.generate_content(
                     prompt,
                     generation_config={
@@ -130,13 +131,9 @@ class GeminiAnalyzer:
                     }
                 )
                 return response.text
-        except Exception as e:
-            error_str = str(e)
-            if '429' in error_str or 'RESOURCE_EXHAUSTED' in error_str:
-                print(f"Gemini API 쿼타 초과: {e}")
+            except Exception as e:
+                print(f"[Gemini] 구 API 오류: {e}")
                 return None
-            print(f"Gemini API 오류: {e}")
-            return None
 
     def analyze_news_sentiment(self, news_titles: List[str], stock_name: str = "") -> Dict:
         """
