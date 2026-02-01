@@ -4255,6 +4255,20 @@ def _analyze_single_stock(api, stock_code: str):
         st.error(f"❌ 종목코드 '{code}'를 찾을 수 없습니다.")
         return
 
+    # 섹터/업종 정보 조회
+    sector_info = ""
+    try:
+        if hasattr(api, 'get_company_overview'):
+            overview = api.get_company_overview(code)
+            if overview and overview.get('sector'):
+                sector_info = overview['sector']
+        if not sector_info:
+            # fallback: stock_list의 get_sector 사용
+            from data.stock_list import get_sector
+            sector_info = get_sector(code)
+    except:
+        sector_info = "기타"
+
     # 종목 데이터 가져오기
     with st.spinner(f"🔄 {name}({code}) 분석 중..."):
         data = _get_stock_data(api, code, 120)
@@ -4428,6 +4442,17 @@ def _analyze_single_stock(api, stock_code: str):
     # 모바일 모드 확인
     is_mobile = st.session_state.get('mobile_mode', False)
 
+    # 섹터 배지 색상 설정
+    sector_colors = {
+        '반도체': '#2196F3', 'IT': '#2196F3', '인터넷': '#2196F3', '게임': '#9C27B0',
+        '자동차': '#607D8B', '철강': '#795548', '화학': '#FF9800',
+        '바이오': '#4CAF50', '제약': '#4CAF50', '의료': '#4CAF50',
+        '금융': '#F44336', '은행': '#F44336', '보험': '#F44336',
+        '에너지': '#FF5722', '전기전자': '#00BCD4', '엔터테인먼트': '#E91E63', '엔터': '#E91E63',
+        '통신': '#009688', '건설': '#8BC34A', '산업재': '#CDDC39', '소비재': '#FFEB3B',
+    }
+    sector_color = sector_colors.get(sector_info, '#9E9E9E')
+
     # 결과 표시 - 모바일/데스크톱 분기
     if is_mobile:
         # 모바일: 세로 배치, 작은 폰트
@@ -4437,7 +4462,9 @@ def _analyze_single_stock(api, stock_code: str):
             <div style='display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap;'>
                 <div style='flex: 1; min-width: 150px;'>
                     <h3 style='margin: 0; color: #333; font-size: 1.1rem;'>{name}</h3>
-                    <p style='margin: 0.2rem 0; color: #666; font-size: 0.85rem;'>{code}</p>
+                    <p style='margin: 0.2rem 0; color: #666; font-size: 0.85rem;'>{code}
+                        <span style='background: {sector_color}; color: white; padding: 2px 8px; border-radius: 10px; font-size: 0.75rem; margin-left: 5px;'>{sector_info}</span>
+                    </p>
                     <p style='margin: 0.3rem 0; color: {change_color}; font-size: 1rem; font-weight: bold;'>
                         {current:,.0f}원 ({sign}{change_rate:.2f}%)
                     </p>
@@ -4458,6 +4485,9 @@ def _analyze_single_stock(api, stock_code: str):
             <div style='display: flex; justify-content: space-between; align-items: center;'>
                 <div>
                     <h2 style='margin: 0; color: #333;'>{name} ({code})</h2>
+                    <p style='margin: 0.3rem 0;'>
+                        <span style='background: {sector_color}; color: white; padding: 4px 12px; border-radius: 12px; font-size: 0.9rem;'>{sector_info}</span>
+                    </p>
                     <p style='margin: 0.5rem 0; color: {change_color}; font-size: 1.3rem; font-weight: bold;'>
                         현재가: {current:,.0f}원 ({sign}{change_rate:.2f}%)
                     </p>
