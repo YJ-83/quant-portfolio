@@ -17,39 +17,63 @@ def _fetch_krx_stocks(market: str) -> list:
     """KRX에서 종목 리스트 가져오기 (시가총액 순 정렬)"""
     stocks = []
 
-    # 방법 1: pykrx 사용 (Streamlit Cloud에서 더 안정적)
+    # 방법 1: FinanceDataReader 사용 (가장 안정적, Streamlit Cloud 호환)
     try:
-        from pykrx import stock
+        import FinanceDataReader as fdr
         if market == "KOSPI":
-            tickers = stock.get_market_ticker_list(market="KOSPI")
+            df = fdr.StockListing('KOSPI')
         else:
-            tickers = stock.get_market_ticker_list(market="KOSDAQ")
+            df = fdr.StockListing('KOSDAQ')
 
-        for ticker in tickers:
-            name = stock.get_market_ticker_name(ticker)
+        for _, row in df.iterrows():
+            code = str(row.get('Code', row.get('Symbol', ''))).zfill(6)
+            name = row.get('Name', '')
             # 스팩, ETF 등 제외
-            if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']):
-                stocks.append((ticker, name))
-    except Exception as e1:
-        print(f"pykrx 종목 조회 실패 ({market}): {e1}")
-
-        # 방법 2: KRX 직접 조회 (fallback)
-        try:
-            if market == "KOSPI":
-                url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=stockMkt"
-            else:
-                url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=kosdaqMkt"
-
-            df = pd.read_html(url, encoding='euc-kr')[0]
-
-            for _, row in df.iterrows():
-                code = str(row['종목코드']).zfill(6)
-                name = row['회사명']
-                if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']) and code.isdigit():
+            if name and not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']):
+                # 우선주 제외 (코드가 숫자로만 구성)
+                if code.isdigit():
                     stocks.append((code, name))
+        if stocks:
+            print(f"FinanceDataReader로 {market} {len(stocks)}개 종목 로드 성공")
+    except Exception as e1:
+        print(f"FinanceDataReader 종목 조회 실패 ({market}): {e1}")
+
+        # 방법 2: pykrx 사용 (fallback)
+        try:
+            from pykrx import stock
+            if market == "KOSPI":
+                tickers = stock.get_market_ticker_list(market="KOSPI")
+            else:
+                tickers = stock.get_market_ticker_list(market="KOSDAQ")
+
+            for ticker in tickers:
+                name = stock.get_market_ticker_name(ticker)
+                if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']):
+                    stocks.append((ticker, name))
+            if stocks:
+                print(f"pykrx로 {market} {len(stocks)}개 종목 로드 성공")
         except Exception as e2:
-            print(f"KRX 직접 조회도 실패 ({market}): {e2}")
-            return []
+            print(f"pykrx 종목 조회도 실패 ({market}): {e2}")
+
+            # 방법 3: KRX 직접 조회 (최후의 fallback)
+            try:
+                if market == "KOSPI":
+                    url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=stockMkt"
+                else:
+                    url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=kosdaqMkt"
+
+                df = pd.read_html(url, encoding='euc-kr')[0]
+
+                for _, row in df.iterrows():
+                    code = str(row['종목코드']).zfill(6)
+                    name = row['회사명']
+                    if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']) and code.isdigit():
+                        stocks.append((code, name))
+                if stocks:
+                    print(f"KRX 직접 조회로 {market} {len(stocks)}개 종목 로드 성공")
+            except Exception as e3:
+                print(f"KRX 직접 조회도 실패 ({market}): {e3}")
+                return []
 
     if not stocks:
         return []
