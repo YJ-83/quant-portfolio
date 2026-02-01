@@ -6,151 +6,10 @@ import pandas as pd
 from functools import lru_cache
 import time
 
-# 캐시된 종목 리스트 (전역 변수)
-_KOSPI_CACHE = None
-_KOSDAQ_CACHE = None
-_CACHE_TIME = 0
-_CACHE_DURATION = 3600  # 1시간 캐시
-
-
-def _fetch_krx_stocks(market: str) -> list:
-    """KRX에서 종목 리스트 가져오기 (시가총액 순 정렬)"""
-    stocks = []
-
-    # 방법 1: FinanceDataReader 사용 (가장 안정적, Streamlit Cloud 호환)
-    try:
-        import FinanceDataReader as fdr
-        if market == "KOSPI":
-            df = fdr.StockListing('KOSPI')
-        else:
-            df = fdr.StockListing('KOSDAQ')
-
-        for _, row in df.iterrows():
-            code = str(row.get('Code', row.get('Symbol', ''))).zfill(6)
-            name = row.get('Name', '')
-            # 스팩, ETF 등 제외
-            if name and not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']):
-                # 우선주 제외 (코드가 숫자로만 구성)
-                if code.isdigit():
-                    stocks.append((code, name))
-        if stocks:
-            print(f"FinanceDataReader로 {market} {len(stocks)}개 종목 로드 성공")
-    except Exception as e1:
-        print(f"FinanceDataReader 종목 조회 실패 ({market}): {e1}")
-
-        # 방법 2: pykrx 사용 (fallback)
-        try:
-            from pykrx import stock
-            if market == "KOSPI":
-                tickers = stock.get_market_ticker_list(market="KOSPI")
-            else:
-                tickers = stock.get_market_ticker_list(market="KOSDAQ")
-
-            for ticker in tickers:
-                name = stock.get_market_ticker_name(ticker)
-                if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']):
-                    stocks.append((ticker, name))
-            if stocks:
-                print(f"pykrx로 {market} {len(stocks)}개 종목 로드 성공")
-        except Exception as e2:
-            print(f"pykrx 종목 조회도 실패 ({market}): {e2}")
-
-            # 방법 3: KRX 직접 조회 (최후의 fallback)
-            try:
-                if market == "KOSPI":
-                    url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=stockMkt"
-                else:
-                    url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=kosdaqMkt"
-
-                df = pd.read_html(url, encoding='euc-kr')[0]
-
-                for _, row in df.iterrows():
-                    code = str(row['종목코드']).zfill(6)
-                    name = row['회사명']
-                    if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']) and code.isdigit():
-                        stocks.append((code, name))
-                if stocks:
-                    print(f"KRX 직접 조회로 {market} {len(stocks)}개 종목 로드 성공")
-            except Exception as e3:
-                print(f"KRX 직접 조회도 실패 ({market}): {e3}")
-                return []
-
-    if not stocks:
-        return []
-
-    # 시가총액 대표 종목을 앞으로 정렬
-    priority_kospi = ['005930', '000660', '373220', '207940', '005380', '000270',
-                     '068270', '035420', '006400', '051910', '003670', '105560']
-    priority_kosdaq = ['247540', '086520', '091990', '263750', '293490', '035900',
-                      '352820', '041510', '112040', '196170', '066970', '028300']
-
-    priority = priority_kospi if market == "KOSPI" else priority_kosdaq
-
-    # 우선순위 종목을 앞에, 나머지는 이름순 정렬
-    priority_stocks = []
-    other_stocks = []
-
-    for code, name in stocks:
-        if code in priority:
-            priority_stocks.append((code, name, priority.index(code)))
-        else:
-            other_stocks.append((code, name))
-
-    # 우선순위 종목 정렬
-    priority_stocks.sort(key=lambda x: x[2])
-    priority_stocks = [(code, name) for code, name, _ in priority_stocks]
-
-    # 나머지 이름순 정렬
-    other_stocks.sort(key=lambda x: x[1])
-
-    return priority_stocks + other_stocks
-
-
-def get_kospi_stocks() -> list:
-    """KOSPI 전체 종목 리스트 (캐시 사용)"""
-    global _KOSPI_CACHE, _CACHE_TIME
-
-    current_time = time.time()
-
-    # 캐시가 유효하면 캐시 반환
-    if _KOSPI_CACHE and (current_time - _CACHE_TIME) < _CACHE_DURATION:
-        return _KOSPI_CACHE
-
-    # KRX에서 가져오기
-    stocks = _fetch_krx_stocks("KOSPI")
-
-    if stocks:
-        _KOSPI_CACHE = stocks
-        _CACHE_TIME = current_time
-        return stocks
-
-    # 실패시 기존 캐시 또는 기본값 반환
-    return _KOSPI_CACHE or KOSPI_STOCKS_DEFAULT
-
-
-def get_kosdaq_stocks() -> list:
-    """KOSDAQ 전체 종목 리스트 (캐시 사용)"""
-    global _KOSDAQ_CACHE, _CACHE_TIME
-
-    current_time = time.time()
-
-    # 캐시가 유효하면 캐시 반환
-    if _KOSDAQ_CACHE and (current_time - _CACHE_TIME) < _CACHE_DURATION:
-        return _KOSDAQ_CACHE
-
-    # KRX에서 가져오기
-    stocks = _fetch_krx_stocks("KOSDAQ")
-
-    if stocks:
-        _KOSDAQ_CACHE = stocks
-        _CACHE_TIME = current_time
-        return stocks
-
-    # 실패시 기존 캐시 또는 기본값 반환
-    return _KOSDAQ_CACHE or KOSDAQ_STOCKS_DEFAULT
-
-
-# 기본 종목 리스트 (KRX 연결 실패시 사용) - 시가총액 상위 100개
+# ============================================================
+# 기본 종목 리스트 (KRX 연결 실패시 사용) - 시가총액 상위
+# 반드시 함수 정의보다 먼저 선언해야 함!
+# ============================================================
 KOSPI_STOCKS_DEFAULT = [
     # 시가총액 TOP 50
     ('005930', '삼성전자'), ('000660', 'SK하이닉스'), ('373220', 'LG에너지솔루션'),
@@ -204,12 +63,172 @@ KOSDAQ_STOCKS_DEFAULT = [
     ('222800', '심텍'), ('038540', '상상인'),
 ]
 
+# ============================================================
+# 캐시 변수
+# ============================================================
+_KOSPI_CACHE = None
+_KOSDAQ_CACHE = None
+_CACHE_TIME = 0
+_CACHE_DURATION = 3600  # 1시간 캐시
+
+
+# ============================================================
+# 종목 로드 함수
+# ============================================================
+def _fetch_krx_stocks(market: str) -> list:
+    """KRX에서 종목 리스트 가져오기 (시가총액 순 정렬)"""
+    stocks = []
+
+    # 방법 1: FinanceDataReader 사용 (가장 안정적, Streamlit Cloud 호환)
+    try:
+        import FinanceDataReader as fdr
+        if market == "KOSPI":
+            df = fdr.StockListing('KOSPI')
+        else:
+            df = fdr.StockListing('KOSDAQ')
+
+        for _, row in df.iterrows():
+            code = str(row.get('Code', row.get('Symbol', ''))).zfill(6)
+            name = row.get('Name', '')
+            # 스팩, ETF 등 제외
+            if name and not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']):
+                # 우선주 제외 (코드가 숫자로만 구성)
+                if code.isdigit():
+                    stocks.append((code, name))
+        if stocks:
+            print(f"FinanceDataReader로 {market} {len(stocks)}개 종목 로드 성공")
+            return stocks
+    except Exception as e1:
+        print(f"FinanceDataReader 종목 조회 실패 ({market}): {e1}")
+
+    # 방법 2: pykrx 사용 (fallback)
+    try:
+        from pykrx import stock
+        if market == "KOSPI":
+            tickers = stock.get_market_ticker_list(market="KOSPI")
+        else:
+            tickers = stock.get_market_ticker_list(market="KOSDAQ")
+
+        for ticker in tickers:
+            name = stock.get_market_ticker_name(ticker)
+            if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']):
+                stocks.append((ticker, name))
+        if stocks:
+            print(f"pykrx로 {market} {len(stocks)}개 종목 로드 성공")
+            return stocks
+    except Exception as e2:
+        print(f"pykrx 종목 조회도 실패 ({market}): {e2}")
+
+    # 방법 3: KRX 직접 조회 (최후의 fallback)
+    try:
+        if market == "KOSPI":
+            url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=stockMkt"
+        else:
+            url = "http://kind.krx.co.kr/corpgeneral/corpList.do?method=download&searchType=13&marketType=kosdaqMkt"
+
+        df = pd.read_html(url, encoding='euc-kr')[0]
+
+        for _, row in df.iterrows():
+            code = str(row['종목코드']).zfill(6)
+            name = row['회사명']
+            if not any(x in name for x in ['스팩', 'ETF', 'ETN', '리츠']) and code.isdigit():
+                stocks.append((code, name))
+        if stocks:
+            print(f"KRX 직접 조회로 {market} {len(stocks)}개 종목 로드 성공")
+            return stocks
+    except Exception as e3:
+        print(f"KRX 직접 조회도 실패 ({market}): {e3}")
+
+    # 모든 방법 실패 시 빈 리스트 반환 (caller에서 기본값 사용)
+    return []
+
+
+def _sort_stocks_by_priority(stocks: list, market: str) -> list:
+    """시가총액 대표 종목을 앞으로 정렬"""
+    if not stocks:
+        return stocks
+
+    priority_kospi = ['005930', '000660', '373220', '207940', '005380', '000270',
+                     '068270', '035420', '006400', '051910', '003670', '105560']
+    priority_kosdaq = ['247540', '086520', '091990', '263750', '293490', '035900',
+                      '352820', '041510', '112040', '196170', '066970', '028300']
+
+    priority = priority_kospi if market == "KOSPI" else priority_kosdaq
+
+    priority_stocks = []
+    other_stocks = []
+
+    for code, name in stocks:
+        if code in priority:
+            priority_stocks.append((code, name, priority.index(code)))
+        else:
+            other_stocks.append((code, name))
+
+    priority_stocks.sort(key=lambda x: x[2])
+    priority_stocks = [(code, name) for code, name, _ in priority_stocks]
+    other_stocks.sort(key=lambda x: x[1])
+
+    return priority_stocks + other_stocks
+
+
+def get_kospi_stocks() -> list:
+    """KOSPI 전체 종목 리스트 (캐시 사용)"""
+    global _KOSPI_CACHE, _CACHE_TIME
+
+    current_time = time.time()
+
+    # 캐시가 유효하면 캐시 반환
+    if _KOSPI_CACHE and (current_time - _CACHE_TIME) < _CACHE_DURATION:
+        return _KOSPI_CACHE
+
+    # KRX에서 가져오기
+    stocks = _fetch_krx_stocks("KOSPI")
+
+    if stocks:
+        stocks = _sort_stocks_by_priority(stocks, "KOSPI")
+        _KOSPI_CACHE = stocks
+        _CACHE_TIME = current_time
+        return stocks
+
+    # 실패시 기존 캐시 또는 기본값 반환
+    print(f"KOSPI 종목 로드 실패, 기본값({len(KOSPI_STOCKS_DEFAULT)}개) 사용")
+    return _KOSPI_CACHE or KOSPI_STOCKS_DEFAULT
+
+
+def get_kosdaq_stocks() -> list:
+    """KOSDAQ 전체 종목 리스트 (캐시 사용)"""
+    global _KOSDAQ_CACHE, _CACHE_TIME
+
+    current_time = time.time()
+
+    # 캐시가 유효하면 캐시 반환
+    if _KOSDAQ_CACHE and (current_time - _CACHE_TIME) < _CACHE_DURATION:
+        return _KOSDAQ_CACHE
+
+    # KRX에서 가져오기
+    stocks = _fetch_krx_stocks("KOSDAQ")
+
+    if stocks:
+        stocks = _sort_stocks_by_priority(stocks, "KOSDAQ")
+        _KOSDAQ_CACHE = stocks
+        _CACHE_TIME = current_time
+        return stocks
+
+    # 실패시 기존 캐시 또는 기본값 반환
+    print(f"KOSDAQ 종목 로드 실패, 기본값({len(KOSDAQ_STOCKS_DEFAULT)}개) 사용")
+    return _KOSDAQ_CACHE or KOSDAQ_STOCKS_DEFAULT
+
+
+# ============================================================
 # 호환성을 위한 변수 (동적으로 로드)
+# ============================================================
 KOSPI_STOCKS = get_kospi_stocks()
 KOSDAQ_STOCKS = get_kosdaq_stocks()
 
 
+# ============================================================
 # 섹터 정보 (대표 종목 기준)
+# ============================================================
 SECTOR_MAP = {
     '005930': 'IT', '000660': 'IT', '009150': 'IT', '034220': 'IT',
     '005380': '자동차', '000270': '자동차', '012330': '자동차',
@@ -224,6 +243,9 @@ SECTOR_MAP = {
 }
 
 
+# ============================================================
+# 유틸리티 함수
+# ============================================================
 def get_sector(code: str) -> str:
     """종목의 섹터 반환"""
     return SECTOR_MAP.get(code, '기타')
