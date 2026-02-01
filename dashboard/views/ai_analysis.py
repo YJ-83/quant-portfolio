@@ -69,10 +69,17 @@ def render_ai_analysis():
         </div>
         """, unsafe_allow_html=True)
 
-    # Gemini API 키 확인
-    gemini_key = os.getenv('GEMINI_API_KEY', '')
+    # Gemini API 키 확인 (Streamlit Secrets 우선)
+    gemini_key = None
+    try:
+        if 'GEMINI_API_KEY' in st.secrets:
+            gemini_key = st.secrets['GEMINI_API_KEY']
+    except Exception:
+        pass
+    if not gemini_key:
+        gemini_key = os.getenv('GEMINI_API_KEY', '')
 
-    # API 상태 표시
+    # API 상태 표시 (키를 명시적으로 전달)
     analyzer = get_analyzer(gemini_key if gemini_key else None)
     crawler = get_crawler()
 

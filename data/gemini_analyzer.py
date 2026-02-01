@@ -37,15 +37,36 @@ _ANALYSIS_CACHE: Dict[str, Dict] = {}
 _CACHE_DURATION = 3600  # 1시간 캐시
 
 
+def _get_api_key_from_secrets() -> Optional[str]:
+    """Streamlit Secrets 또는 환경변수에서 API 키 로드"""
+    # 1. Streamlit Secrets 시도 (Streamlit Cloud)
+    try:
+        import streamlit as st
+        if hasattr(st, 'secrets') and 'GEMINI_API_KEY' in st.secrets:
+            print("[Gemini] Streamlit Secrets에서 API 키 로드")
+            return st.secrets['GEMINI_API_KEY']
+    except Exception:
+        pass
+
+    # 2. 환경변수 시도
+    key = os.getenv('GEMINI_API_KEY')
+    if key:
+        print("[Gemini] 환경변수에서 API 키 로드")
+        return key
+
+    print("[Gemini] API 키를 찾을 수 없음")
+    return None
+
+
 class GeminiAnalyzer:
     """Gemini API 기반 주식 분석기"""
 
     def __init__(self, api_key: Optional[str] = None):
         """
         Args:
-            api_key: Gemini API 키. None이면 환경변수에서 로드
+            api_key: Gemini API 키. None이면 Secrets/환경변수에서 로드
         """
-        self.api_key = api_key or os.getenv('GEMINI_API_KEY')
+        self.api_key = api_key or _get_api_key_from_secrets()
         self.client = None
         self.initialized = False
         self.use_new_api = False
