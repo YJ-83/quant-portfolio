@@ -1,10 +1,13 @@
 """
 KOSPI/KOSDAQ 전체 종목 리스트
 KRX(한국거래소)에서 실시간으로 전체 종목 가져오기
++ 네이버 금융에서 섹터/업종 정보 크롤링
 """
 import pandas as pd
 from functools import lru_cache
 import time
+import requests
+from typing import Optional
 
 # ============================================================
 # 기본 종목 리스트 (KRX 연결 실패시 사용) - 시가총액 상위
@@ -227,7 +230,313 @@ KOSDAQ_STOCKS = get_kosdaq_stocks()
 
 
 # ============================================================
-# 섹터 정보 (세부 분류)
+# 네이버 금융 섹터 크롤링 캐시
+# ============================================================
+_NAVER_SECTOR_CACHE = {}
+_NAVER_CACHE_DURATION = 86400  # 24시간 캐시
+
+
+def get_sector_from_naver(code: str) -> Optional[str]:
+    """
+    네이버 금융에서 종목의 업종/섹터 정보 크롤링
+
+    Args:
+        code: 6자리 종목코드
+
+    Returns:
+        업종명 (없으면 None)
+    """
+    global _NAVER_SECTOR_CACHE
+
+    # 캐시 확인
+    if code in _NAVER_SECTOR_CACHE:
+        cached = _NAVER_SECTOR_CACHE[code]
+        if time.time() - cached['time'] < _NAVER_CACHE_DURATION:
+            return cached['sector']
+
+    try:
+        # 네이버 금융 종목 페이지
+        url = f"https://finance.naver.com/item/main.naver?code={code}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+
+        response = requests.get(url, headers=headers, timeout=5)
+        response.encoding = 'euc-kr'
+
+        if response.status_code != 200:
+            return None
+
+        html = response.text
+
+        # 업종 정보 추출 (여러 패턴 시도)
+        sector = None
+
+        # 패턴 1: <em class="t_nm">업종명</em> (기업개요 섹션)
+        import re
+
+        # 업종 링크에서 추출 (예: /item/coinfo.naver?code=005930&amp;target=sector)
+        pattern1 = r'href="/sise/sise_group_detail\.naver\?type=upjong&amp;no=\d+">([^<]+)</a>'
+        match1 = re.search(pattern1, html)
+        if match1:
+            sector = match1.group(1).strip()
+
+        # 패턴 2: 기업개요에서 업종 정보 (tab_con1 내)
+        if not sector:
+            pattern2 = r'업종</em>\s*<dd>([^<]+)</dd>'
+            match2 = re.search(pattern2, html)
+            if match2:
+                sector = match2.group(1).strip()
+
+        # 패턴 3: 상단 업종 배지
+        if not sector:
+            pattern3 = r'class="t_nm">([^<]+)</em>\s*</td>'
+            match3 = re.search(pattern3, html)
+            if match3:
+                sector = match3.group(1).strip()
+
+        # 패턴 4: 더 일반적인 업종 패턴
+        if not sector:
+            pattern4 = r'업종[:\s]*</th>\s*<td[^>]*>([^<]+)</td>'
+            match4 = re.search(pattern4, html, re.IGNORECASE)
+            if match4:
+                sector = match4.group(1).strip()
+
+        # 캐시 저장
+        if sector:
+            _NAVER_SECTOR_CACHE[code] = {'sector': sector, 'time': time.time()}
+            return sector
+
+        # 못 찾으면 None 캐시 (반복 요청 방지)
+        _NAVER_SECTOR_CACHE[code] = {'sector': None, 'time': time.time()}
+        return None
+
+    except Exception as e:
+        print(f"[NaverSector] {code} 조회 실패: {e}")
+        return None
+
+
+def get_detailed_sector_from_naver(code: str) -> dict:
+    """
+    네이버 금융에서 상세 섹터 정보 조회
+
+    Returns:
+        {
+            'sector': 업종명,
+            'sub_sector': 세부업종 (있으면),
+            'industry': 산업군,
+            'source': 'naver'
+        }
+    """
+    global _NAVER_SECTOR_CACHE
+
+    cache_key = f"{code}_detailed"
+    if cache_key in _NAVER_SECTOR_CACHE:
+        cached = _NAVER_SECTOR_CACHE[cache_key]
+        if time.time() - cached['time'] < _NAVER_CACHE_DURATION:
+            return cached['data']
+
+    result = {
+        'sector': None,
+        'sub_sector': None,
+        'industry': None,
+        'source': 'naver'
+    }
+
+    try:
+        # BeautifulSoup 사용하여 더 안정적으로 파싱
+        from bs4 import BeautifulSoup
+
+        url = f"https://finance.naver.com/item/main.naver?code={code}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+        }
+
+        response = requests.get(url, headers=headers, timeout=10)
+
+        # 인코딩 자동 감지 시도
+        if response.encoding is None or response.encoding == 'ISO-8859-1':
+            response.encoding = 'euc-kr'
+
+        if response.status_code != 200:
+            return result
+
+        soup = BeautifulSoup(response.text, 'html.parser')
+
+        # 1. 업종 링크에서 추출 (가장 정확)
+        # <a href="/sise/sise_group_detail.naver?type=upjong&no=267">반도체와반도체장비</a>
+        sector_link = soup.find('a', href=lambda x: x and 'sise_group_detail' in x and 'upjong' in x)
+        if sector_link:
+            result['sector'] = sector_link.get_text(strip=True)
+
+        # 2. 상단 시장구분 (코스피/코스닥)
+        market_em = soup.find('em', class_='t_nm')
+        if market_em:
+            result['industry'] = market_em.get_text(strip=True)
+            if not result['sector']:
+                result['sector'] = market_em.get_text(strip=True)
+
+        # 섹터명 정제
+        if result['sector']:
+            result['sub_sector'] = _refine_sector_name(result['sector'])
+
+        # 캐시 저장
+        _NAVER_SECTOR_CACHE[cache_key] = {'data': result, 'time': time.time()}
+        return result
+
+    except ImportError:
+        # BeautifulSoup 없으면 정규식 fallback
+        pass
+    except Exception as e:
+        print(f"[NaverSector] {code} 상세 조회 실패: {e}")
+
+    # BeautifulSoup 없을 때 정규식 fallback
+    try:
+        url = f"https://finance.naver.com/item/main.naver?code={code}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+            'Accept-Language': 'ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7',
+        }
+
+        response = requests.get(url, headers=headers, timeout=10)
+        response.encoding = 'euc-kr'
+
+        if response.status_code != 200:
+            return result
+
+        html = response.text
+        import re
+
+        # 업종 링크에서 추출
+        pattern = r'href="[^"]*sise_group_detail[^"]*upjong[^"]*">([^<]+)</a>'
+        match = re.search(pattern, html)
+        if match:
+            result['sector'] = match.group(1).strip()
+            result['sub_sector'] = _refine_sector_name(result['sector'])
+
+        _NAVER_SECTOR_CACHE[cache_key] = {'data': result, 'time': time.time()}
+        return result
+
+    except Exception as e:
+        print(f"[NaverSector] {code} regex fallback 실패: {e}")
+        return result
+
+
+def _refine_sector_name(raw_sector: str) -> str:
+    """네이버 업종명을 세부 분류로 정제"""
+    # 업종명 매핑 (네이버 -> 세부 섹터)
+    sector_mapping = {
+        # 반도체
+        '반도체와반도체장비': '반도체',
+        '반도체': '반도체',
+        '전자장비와기기': '반도체장비',
+        '전자부품': '전자부품',
+
+        # IT/소프트웨어
+        '소프트웨어': 'AI/소프트웨어',
+        'IT서비스': 'AI/IT서비스',
+        '인터넷': 'AI/플랫폼',
+        '게임엔터테인먼트': '게임',
+        '미디어': '미디어',
+
+        # 2차전지
+        '전기장비': '2차전지',
+        '에너지장비': '2차전지장비',
+        '전기제품': '2차전지',
+
+        # 자동차
+        '자동차': '자동차',
+        '자동차부품': '자동차부품',
+        '운송장비': '자동차부품',
+        '타이어': '타이어',
+
+        # 바이오/제약
+        '제약': '제약',
+        '바이오': '바이오',
+        '생물공학': '바이오',
+        '건강관리장비와용품': '헬스케어',
+        '건강관리업체및서비스': '헬스케어',
+
+        # 화학
+        '화학': '화학',
+        '석유와가스': '석유화학',
+        '가스유틸리티': '가스',
+
+        # 금융
+        '은행': '은행',
+        '보험': '보험',
+        '증권': '증권',
+        '다각화된금융': '금융지주',
+        '캐피탈': '카드/캐피탈',
+
+        # 건설/부동산
+        '건설': '건설',
+        '부동산': '부동산',
+        '건축자재': '건자재',
+
+        # 유통/소비재
+        '백화점과일반상점': '유통',
+        '소매(유통)': '유통',
+        '식품': '식품',
+        '음식료품': '식품',
+        '음료': '음료',
+        '의류': '의류',
+        '화장품': '화장품',
+        '가정용품': '생활용품',
+
+        # 조선/해운
+        '조선': '조선',
+        '해운': '해운',
+        '항공': '항공',
+        '항공사': '항공',
+
+        # 방산/우주항공
+        '항공우주와국방': '우주항공',
+        '국방': '방산',
+
+        # 철강/소재
+        '철강': '철강',
+        '비철금속': '비철금속',
+        '종이와목재': '종이/목재',
+
+        # 통신
+        '무선통신서비스': '통신/5G',
+        '다각화된통신서비스': '통신/5G',
+        '통신장비': '통신장비',
+
+        # 엔터테인먼트
+        '엔터테인먼트': '엔터',
+        '방송과엔터테인먼트': '엔터',
+
+        # 전력/유틸리티
+        '전기유틸리티': '전력',
+        '전력': '전력',
+        '유틸리티': '유틸리티',
+
+        # 기계/산업재
+        '기계': '기계',
+        '산업재': '산업재',
+        '운송인프라': '인프라',
+    }
+
+    # 정확히 매칭
+    if raw_sector in sector_mapping:
+        return sector_mapping[raw_sector]
+
+    # 부분 매칭
+    for key, value in sector_mapping.items():
+        if key in raw_sector or raw_sector in key:
+            return value
+
+    # 매핑 없으면 원본 반환
+    return raw_sector
+
+
+# ============================================================
+# 섹터 정보 (세부 분류) - 정적 매핑 (Fallback)
 # ============================================================
 SECTOR_MAP = {
     # ===== 반도체 =====
@@ -334,9 +643,61 @@ SECTOR_MAP = {
 # ============================================================
 # 유틸리티 함수
 # ============================================================
-def get_sector(code: str) -> str:
-    """종목의 섹터 반환"""
-    return SECTOR_MAP.get(code, '기타')
+def get_sector(code: str, use_naver: bool = True) -> str:
+    """
+    종목의 섹터 반환
+
+    Args:
+        code: 6자리 종목코드
+        use_naver: True면 네이버 금융에서 실시간 조회 (기본값)
+
+    Returns:
+        섹터/업종명
+    """
+    # 1. 정적 매핑 먼저 확인 (빠름)
+    if code in SECTOR_MAP:
+        return SECTOR_MAP[code]
+
+    # 2. 네이버 금융에서 조회 (use_naver=True일 때)
+    if use_naver:
+        try:
+            naver_result = get_detailed_sector_from_naver(code)
+            if naver_result and naver_result.get('sub_sector'):
+                return naver_result['sub_sector']
+            elif naver_result and naver_result.get('sector'):
+                return naver_result['sector']
+        except Exception as e:
+            print(f"[get_sector] 네이버 조회 실패 {code}: {e}")
+
+    # 3. Fallback
+    return '기타'
+
+
+def get_sector_with_source(code: str) -> dict:
+    """
+    섹터 정보와 출처를 함께 반환
+
+    Returns:
+        {
+            'sector': 섹터명,
+            'source': 'static' | 'naver' | 'fallback'
+        }
+    """
+    # 1. 정적 매핑 확인
+    if code in SECTOR_MAP:
+        return {'sector': SECTOR_MAP[code], 'source': 'static'}
+
+    # 2. 네이버 조회
+    try:
+        naver_result = get_detailed_sector_from_naver(code)
+        if naver_result and naver_result.get('sub_sector'):
+            return {'sector': naver_result['sub_sector'], 'source': 'naver'}
+        elif naver_result and naver_result.get('sector'):
+            return {'sector': naver_result['sector'], 'source': 'naver'}
+    except Exception:
+        pass
+
+    return {'sector': '기타', 'source': 'fallback'}
 
 
 def get_all_stocks():

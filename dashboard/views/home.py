@@ -1456,6 +1456,11 @@ def _render_stock_detail_section(api, code: str):
             # ========== 추세선 추가 (저점/고점 연결) ==========
             from scipy import stats
 
+            # 가격 범위 계산 (Y축 클리핑용)
+            price_high = chart_data['high'].max()
+            price_low = chart_data['low'].min()
+            price_margin = (price_high - price_low) * 0.1  # 10% 여유
+
             # 상승 추세선 (저점 연결) - 최근 저점이 2개 이상이고 상승 추세일 때
             if len(swing_low_idx) >= 2:
                 try:
@@ -1472,6 +1477,10 @@ def _render_stock_detail_section(api, code: str):
                         x_end = len(chart_data) - 1
                         y_start = slope * x_start + intercept
                         y_end = slope * x_end + intercept
+
+                        # Y값 클리핑 (차트 범위 내로 제한)
+                        y_start = max(price_low - price_margin, min(price_high + price_margin, y_start))
+                        y_end = max(price_low - price_margin, min(price_high + price_margin, y_end))
 
                         fig.add_trace(go.Scatter(
                             x=[chart_data[time_col].iloc[x_start], chart_data[time_col].iloc[x_end]],
@@ -1500,6 +1509,10 @@ def _render_stock_detail_section(api, code: str):
                         x_end = len(chart_data) - 1
                         y_start = slope * x_start + intercept
                         y_end = slope * x_end + intercept
+
+                        # Y값 클리핑 (차트 범위 내로 제한)
+                        y_start = max(price_low - price_margin, min(price_high + price_margin, y_start))
+                        y_end = max(price_low - price_margin, min(price_high + price_margin, y_end))
 
                         fig.add_trace(go.Scatter(
                             x=[chart_data[time_col].iloc[x_start], chart_data[time_col].iloc[x_end]],
