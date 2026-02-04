@@ -4255,19 +4255,67 @@ def _analyze_single_stock(api, stock_code: str):
         st.error(f"❌ 종목코드 '{code}'를 찾을 수 없습니다.")
         return
 
-    # 섹터/업종 정보 조회
-    sector_info = ""
+    # ========== 섹터 조회 V5 (2026-02-01 21:15) - UTF-8 ==========
+    sector_info = "기타"
+    sector_source = "fallback"
+
     try:
-        if hasattr(api, 'get_company_overview'):
-            overview = api.get_company_overview(code)
-            if overview and overview.get('sector'):
-                sector_info = overview['sector']
-        if not sector_info:
-            # fallback: stock_list의 get_sector 사용
-            from data.stock_list import get_sector
-            sector_info = get_sector(code)
-    except:
+        import requests
+        from bs4 import BeautifulSoup
+
+        # 네이버 금융에서 직접 조회 (UTF-8 인코딩)
+        naver_url = f"https://finance.naver.com/item/main.naver?code={code}"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36',
+            'Accept-Language': 'ko-KR,ko;q=0.9',
+        }
+        resp = requests.get(naver_url, headers=headers, timeout=10)
+
+        if resp.status_code == 200:
+            # 네이버 금융은 UTF-8 (resp.text가 자동으로 처리)
+            soup = BeautifulSoup(resp.text, 'lxml')
+
+            # 업종 링크에서 추출
+            sector_link = soup.find('a', href=lambda x: x and 'sise_group_detail' in x and 'upjong' in x)
+
+            if sector_link:
+                raw_sector = sector_link.get_text(strip=True)
+
+                # 섹터명 정제 매핑
+                sector_mapping = {
+                    '반도체와반도체장비': '반도체', '전자장비와기기': '반도체장비',
+                    '소프트웨어': 'AI/소프트웨어', 'IT서비스': 'AI/IT서비스', '인터넷': 'AI/플랫폼',
+                    '전기장비': '2차전지', '에너지장비': '2차전지장비',
+                    '자동차': '자동차', '자동차부품': '자동차부품',
+                    '제약': '제약', '바이오': '바이오', '생물공학': '바이오',
+                    '건강관리장비와용품': '헬스케어', '건강관리업체및서비스': '헬스케어',
+                    '화학': '화학', '석유와가스': '석유화학',
+                    '은행': '은행', '보험': '보험', '증권': '증권',
+                    '건설': '건설', '부동산': '부동산',
+                    '백화점과일반상점': '유통', '식품': '식품', '음식료품': '식품',
+                    '조선': '조선', '해운': '해운', '항공': '항공',
+                    '항공우주와국방': '우주항공', '국방': '방산',
+                    '철강': '철강', '기계': '기계',
+                    '무선통신서비스': '통신/5G', '다각화된통신서비스': '통신/5G',
+                    '엔터테인먼트': '엔터', '방송과엔터테인먼트': '엔터',
+                    '전기유틸리티': '전력',
+                }
+                sector_info = sector_mapping.get(raw_sector, raw_sector)
+                sector_source = 'naver'
+
+        # 네이버에서 못 찾으면 KIS API fallback
+        if sector_info == '기타' and hasattr(api, 'get_company_overview'):
+            try:
+                overview = api.get_company_overview(code)
+                if overview and overview.get('sector'):
+                    sector_info = overview['sector']
+                    sector_source = 'kis'
+            except Exception:
+                pass
+
+    except Exception:
         sector_info = "기타"
+        sector_source = "error"
 
     # 종목 데이터 가져오기
     with st.spinner(f"🔄 {name}({code}) 분석 중..."):

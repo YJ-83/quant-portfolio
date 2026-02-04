@@ -718,6 +718,55 @@ def _render_stock_chart(api, code: str, name: str):
                 row=1, col=1
             )
 
+        # ========== 추세선 추가 (저점/고점 연결) ==========
+        from scipy import stats
+
+        # 상승 추세선 (저점 연결)
+        if len(swing_low_idx) >= 2:
+            recent_lows = swing_low_idx[-5:] if len(swing_low_idx) >= 5 else swing_low_idx
+            tl_low_x = list(recent_lows)
+            tl_low_y = [chart_data['low'].iloc[i] for i in recent_lows]
+            slope, intercept, _, _, _ = stats.linregress(tl_low_x, tl_low_y)
+
+            if slope > 0:
+                tl_x_start = min(recent_lows)
+                tl_x_end = len(chart_data) - 1
+                tl_y_start = slope * tl_x_start + intercept
+                tl_y_end = slope * tl_x_end + intercept
+
+                fig.add_trace(go.Scatter(
+                    x=[chart_data['date'].iloc[tl_x_start], chart_data['date'].iloc[tl_x_end]],
+                    y=[tl_y_start, tl_y_end],
+                    mode='lines',
+                    name='상승 추세선',
+                    line=dict(color='#00C853', width=2, dash='solid'),
+                    hovertemplate='상승 추세선<extra></extra>',
+                    showlegend=True
+                ), row=1, col=1)
+
+        # 하락 추세선 (고점 연결)
+        if len(swing_high_idx) >= 2:
+            recent_highs = swing_high_idx[-5:] if len(swing_high_idx) >= 5 else swing_high_idx
+            tl_high_x = list(recent_highs)
+            tl_high_y = [chart_data['high'].iloc[i] for i in recent_highs]
+            slope, intercept, _, _, _ = stats.linregress(tl_high_x, tl_high_y)
+
+            if slope < 0:
+                tl_x_start = min(recent_highs)
+                tl_x_end = len(chart_data) - 1
+                tl_y_start = slope * tl_x_start + intercept
+                tl_y_end = slope * tl_x_end + intercept
+
+                fig.add_trace(go.Scatter(
+                    x=[chart_data['date'].iloc[tl_x_start], chart_data['date'].iloc[tl_x_end]],
+                    y=[tl_y_start, tl_y_end],
+                    mode='lines',
+                    name='하락 추세선',
+                    line=dict(color='#FF3B30', width=2, dash='solid'),
+                    hovertemplate='하락 추세선<extra></extra>',
+                    showlegend=True
+                ), row=1, col=1)
+
     # 거래량
     colors = ['#ef5350' if row['close'] >= row['open'] else '#26a69a'
               for _, row in chart_data.iterrows()]

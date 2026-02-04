@@ -1453,6 +1453,66 @@ def _render_stock_detail_section(api, code: str):
                     showlegend=True
                 ), row=1, col=1)
 
+            # ========== 추세선 추가 (저점/고점 연결) ==========
+            from scipy import stats
+
+            # 상승 추세선 (저점 연결) - 최근 저점이 2개 이상이고 상승 추세일 때
+            if len(swing_low_idx) >= 2:
+                try:
+                    recent_lows = swing_low_idx[-5:] if len(swing_low_idx) >= 5 else swing_low_idx
+                    low_x = list(recent_lows)
+                    low_y = [chart_data['low'].iloc[i] for i in recent_lows]
+
+                    slope, intercept, _, _, _ = stats.linregress(low_x, low_y)
+
+                    # 상승 추세선만 표시 (기울기 > 0)
+                    if slope > 0:
+                        # 추세선을 차트 전체에 걸쳐 그리기
+                        x_start = swing_low_idx[0] if len(swing_low_idx) > 0 else 0
+                        x_end = len(chart_data) - 1
+                        y_start = slope * x_start + intercept
+                        y_end = slope * x_end + intercept
+
+                        fig.add_trace(go.Scatter(
+                            x=[chart_data[time_col].iloc[x_start], chart_data[time_col].iloc[x_end]],
+                            y=[y_start, y_end],
+                            mode='lines',
+                            name='상승 추세선',
+                            line=dict(color='#00C853', width=2, dash='solid'),
+                            hovertemplate='상승 추세선<extra></extra>',
+                            showlegend=True
+                        ), row=1, col=1)
+                except:
+                    pass
+
+            # 하락 추세선 (고점 연결) - 최근 고점이 2개 이상이고 하락 추세일 때
+            if len(swing_high_idx) >= 2:
+                try:
+                    recent_highs = swing_high_idx[-5:] if len(swing_high_idx) >= 5 else swing_high_idx
+                    high_x = list(recent_highs)
+                    high_y = [chart_data['high'].iloc[i] for i in recent_highs]
+
+                    slope, intercept, _, _, _ = stats.linregress(high_x, high_y)
+
+                    # 하락 추세선만 표시 (기울기 < 0)
+                    if slope < 0:
+                        x_start = swing_high_idx[0] if len(swing_high_idx) > 0 else 0
+                        x_end = len(chart_data) - 1
+                        y_start = slope * x_start + intercept
+                        y_end = slope * x_end + intercept
+
+                        fig.add_trace(go.Scatter(
+                            x=[chart_data[time_col].iloc[x_start], chart_data[time_col].iloc[x_end]],
+                            y=[y_start, y_end],
+                            mode='lines',
+                            name='하락 추세선',
+                            line=dict(color='#FF3B30', width=2, dash='solid'),
+                            hovertemplate='하락 추세선<extra></extra>',
+                            showlegend=True
+                        ), row=1, col=1)
+                except:
+                    pass
+
         # 매물대 (Volume Profile) - 우측에 가로 막대 차트
         if show_volume_profile:
             price_levels, volumes, poc_price = calculate_volume_profile(chart_data, num_bins=30)

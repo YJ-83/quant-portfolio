@@ -533,6 +533,7 @@ menu_options = {
     "📂 섹터 분류": "sector",
     "📊 차트 전략": "chart_strategy",
     "📈 백테스트": "backtest",
+    "🔍 패턴 분석": "pattern_analysis",  # 다중 종목 패턴 분석
     # "🤖 AI 분석": "ai_analysis",  # Gemini API 쿼타 문제로 임시 비활성화
     "💹 퀀트 매매": "quant_trading",
     "💼 포트폴리오": "portfolio",
@@ -694,6 +695,9 @@ elif menu == "📊 차트 전략":
 elif menu == "📈 백테스트":
     from views.backtest import render_backtest
     render_backtest()
+elif menu == "🔍 패턴 분석":
+    from views.pattern_analysis import render_pattern_analysis
+    render_pattern_analysis()
 # elif menu == "🤖 AI 분석":  # Gemini API 쿼타 문제로 임시 비활성화
 #     from views.ai_analysis import render_ai_analysis
 #     render_ai_analysis()
