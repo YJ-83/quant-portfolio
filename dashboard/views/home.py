@@ -1760,19 +1760,26 @@ def _render_stock_detail_section(api, code: str):
                 """, unsafe_allow_html=True)
 
             with col2:
-                # 가격 정보
+                # 가격 정보 (분할 매수)
                 entry_price = signal_result.get('entry_price')
+                entry_price_2 = signal_result.get('entry_price_2')
+                entry_price_3 = signal_result.get('entry_price_3')
                 stop_loss = signal_result.get('stop_loss')
                 target_price = signal_result.get('target_price')
 
                 price_html = "<div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1.5rem; border-radius: 16px; border: 1px solid #333;'>"
                 if entry_price:
-                    price_html += f"<p style='color: #888; margin: 0; font-size: 0.85rem;'>권장 진입가</p>"
-                    price_html += f"<p style='color: #11998e; font-size: 1.5rem; font-weight: 700; margin: 0.3rem 0;'>{entry_price:,.0f}원</p>"
+                    price_html += f"<p style='color: #888; margin: 0 0 0.5rem 0; font-size: 0.85rem;'>📊 분할 매수 전략</p>"
+                    price_html += f"<p style='color: #11998e; font-size: 1.2rem; font-weight: 700; margin: 0.2rem 0;'>1차: {entry_price:,.0f}원</p>"
+                    if entry_price_2:
+                        price_html += f"<p style='color: #38ef7d; font-size: 1.1rem; font-weight: 600; margin: 0.2rem 0;'>2차: {entry_price_2:,.0f}원</p>"
+                    if entry_price_3:
+                        price_html += f"<p style='color: #56ab2f; font-size: 1.0rem; font-weight: 500; margin: 0.2rem 0;'>3차: {entry_price_3:,.0f}원</p>"
+                    price_html += "<hr style='border: none; border-top: 1px solid #333; margin: 0.5rem 0;'>"
                 if stop_loss:
-                    price_html += f"<p style='color: #f5576c; font-size: 0.95rem; margin: 0.2rem 0;'>손절가: {stop_loss:,.0f}원</p>"
+                    price_html += f"<p style='color: #f5576c; font-size: 0.9rem; margin: 0.2rem 0;'>🛑 손절가: {stop_loss:,.0f}원</p>"
                 if target_price:
-                    price_html += f"<p style='color: #f5576c; font-size: 0.95rem; margin: 0.2rem 0;'>목표가: {target_price:,.0f}원</p>"
+                    price_html += f"<p style='color: #667eea; font-size: 0.9rem; margin: 0.2rem 0;'>🎯 목표가: {target_price:,.0f}원</p>"
                 if not entry_price:
                     price_html += f"<p style='color: #888; margin: 0; text-align: center; padding: 1rem 0;'>매수 신호 아님</p>"
                 price_html += "</div>"

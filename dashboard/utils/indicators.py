@@ -2137,32 +2137,40 @@ def get_detailed_trading_signal(df: pd.DataFrame) -> Dict[str, Any]:
     signal_type = 'hold'
     signal_name = '관망'
     entry_price = current_price
+    entry_price_2 = None
+    entry_price_3 = None
     stop_loss = None
     target_price = None
     strategy = ''
 
     if score >= 30:
-        # 강한 매수 (공격적)
+        # 강한 매수 (공격적) - 3단계 분할 매수
         signal_type = 'strong_buy'
         signal_name = '강한 매수'
-        entry_price = current_price
-        stop_loss = current_price * 0.97  # -3%
+        entry_price = current_price  # 1차 진입: 즉시
+        entry_price_2 = current_price * 0.98  # 2차 진입: -2%
+        entry_price_3 = current_price * 0.96  # 3차 진입: -4%
+        stop_loss = current_price * 0.93  # -7% (전체 평균가 기준)
         target_price = current_price * 1.15  # +15%
         strategy = '공격적 전략 - RSI 과매도 + MACD 골든크로스 + 볼린저 하단'
     elif score >= 15:
-        # 매수 (적극적)
+        # 매수 (적극적) - 2단계 분할 매수
         signal_type = 'buy'
         signal_name = '매수'
-        entry_price = current_price
-        stop_loss = current_price * 0.95  # -5%
+        entry_price = current_price  # 1차 진입: 즉시
+        entry_price_2 = current_price * 0.97  # 2차 진입: -3%
+        entry_price_3 = None  # 3차 없음
+        stop_loss = current_price * 0.93  # -7%
         target_price = current_price * 1.10  # +10%
         strategy = '적극적 전략 - 기술적 지표 긍정적 신호'
     elif score >= 5:
-        # 안정적 매수 (보수적)
+        # 안정적 매수 (보수적) - 3단계 분할 매수
         signal_type = 'stable_buy'
         signal_name = '안정적 매수'
-        entry_price = current_price * 0.98  # -2% 대기
-        stop_loss = current_price * 0.93  # -7%
+        entry_price = current_price * 0.98  # 1차 진입: -2% 대기
+        entry_price_2 = current_price * 0.96  # 2차 진입: -4%
+        entry_price_3 = current_price * 0.94  # 3차 진입: -6%
+        stop_loss = current_price * 0.90  # -10%
         target_price = current_price * 1.08  # +8%
         strategy = '보수적 전략 - 분할 매수 권장, 20일선 지지 확인'
     elif score <= -30:
@@ -2170,6 +2178,8 @@ def get_detailed_trading_signal(df: pd.DataFrame) -> Dict[str, Any]:
         signal_type = 'strong_sell'
         signal_name = '강한 매도'
         entry_price = None
+        entry_price_2 = None
+        entry_price_3 = None
         stop_loss = None
         target_price = None
         strategy = '즉시 매도 - RSI 과매수 + MACD 데드크로스 + 볼린저 상단'
@@ -2178,6 +2188,8 @@ def get_detailed_trading_signal(df: pd.DataFrame) -> Dict[str, Any]:
         signal_type = 'sell'
         signal_name = '매도'
         entry_price = None
+        entry_price_2 = None
+        entry_price_3 = None
         stop_loss = None
         target_price = None
         strategy = '매도 신호 - 저항선 도달, 이익 실현 권장'
@@ -2185,6 +2197,11 @@ def get_detailed_trading_signal(df: pd.DataFrame) -> Dict[str, Any]:
         # 관망
         signal_type = 'hold'
         signal_name = '관망'
+        entry_price = None
+        entry_price_2 = None
+        entry_price_3 = None
+        stop_loss = None
+        target_price = None
         strategy = '중립 - 명확한 신호 대기'
 
     return {
@@ -2192,6 +2209,8 @@ def get_detailed_trading_signal(df: pd.DataFrame) -> Dict[str, Any]:
         'signal_name': signal_name,
         'confidence': round(confidence, 1),
         'entry_price': round(entry_price, 0) if entry_price else None,
+        'entry_price_2': round(entry_price_2, 0) if entry_price_2 else None,
+        'entry_price_3': round(entry_price_3, 0) if entry_price_3 else None,
         'stop_loss': round(stop_loss, 0) if stop_loss else None,
         'target_price': round(target_price, 0) if target_price else None,
         'strategy': strategy,
