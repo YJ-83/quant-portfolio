@@ -1788,7 +1788,14 @@ def _render_stock_detail_section(api, code: str):
 
                 price_html = "<div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1.5rem; border-radius: 16px; border: 1px solid #333;'>"
                 if entry_price:
-                    price_html += f"<p style='color: #888; margin: 0 0 0.5rem 0; font-size: 0.85rem;'>📊 분할 매수 전략</p>"
+                    # 신호 타입에 따라 제목 변경
+                    if signal_type in ['sell', 'strong_sell']:
+                        price_html += f"<p style='color: #f5576c; margin: 0 0 0.5rem 0; font-size: 0.85rem;'>📉 매도 권장 - 반등 조건</p>"
+                    elif signal_type == 'hold':
+                        price_html += f"<p style='color: #FFC107; margin: 0 0 0.5rem 0; font-size: 0.85rem;'>⏳ 조건부 진입 전략</p>"
+                    else:
+                        price_html += f"<p style='color: #888; margin: 0 0 0.5rem 0; font-size: 0.85rem;'>📊 분할 매수 전략</p>"
+
                     price_html += f"<p style='color: #11998e; font-size: 1.2rem; font-weight: 700; margin: 0.2rem 0;'>1차: {entry_price:,.0f}원</p>"
                     if entry_price_2:
                         price_html += f"<p style='color: #38ef7d; font-size: 1.1rem; font-weight: 600; margin: 0.2rem 0;'>2차: {entry_price_2:,.0f}원</p>"
@@ -1799,8 +1806,6 @@ def _render_stock_detail_section(api, code: str):
                     price_html += f"<p style='color: #f5576c; font-size: 0.9rem; margin: 0.2rem 0;'>🛑 손절가: {stop_loss:,.0f}원</p>"
                 if target_price:
                     price_html += f"<p style='color: #667eea; font-size: 0.9rem; margin: 0.2rem 0;'>🎯 목표가: {target_price:,.0f}원</p>"
-                if not entry_price:
-                    price_html += f"<p style='color: #888; margin: 0; text-align: center; padding: 1rem 0;'>매수 신호 아님</p>"
                 price_html += "</div>"
                 st.markdown(price_html, unsafe_allow_html=True)
 

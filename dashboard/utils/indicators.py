@@ -2174,25 +2174,29 @@ def get_detailed_trading_signal(df: pd.DataFrame) -> Dict[str, Any]:
         target_price = current_price * 1.08  # +8%
         strategy = '보수적 전략 - 분할 매수 권장, 20일선 지지 확인'
     elif score <= -30:
-        # 강한 매도
+        # 강한 매도 - 반등 조건부 진입가 제공
         signal_type = 'strong_sell'
         signal_name = '강한 매도'
-        entry_price = None
-        entry_price_2 = None
-        entry_price_3 = None
-        stop_loss = None
-        target_price = None
-        strategy = '즉시 매도 - RSI 과매수 + MACD 데드크로스 + 볼린저 상단'
+
+        # 반등 시 진입 조건: 큰 폭 하락 + RSI 과매도 전환
+        entry_price = current_price * 0.90  # -10% 하락 시
+        entry_price_2 = current_price * 0.88  # -12% 하락 시
+        entry_price_3 = current_price * 0.85  # -15% 하락 시
+        stop_loss = current_price * 0.82  # -18%
+        target_price = current_price * 0.95  # -5% (반등 목표)
+        strategy = '매도 권장 - 반등 조건: RSI 30 이하 + 10% 이상 하락 시 진입 검토'
     elif score <= -15:
-        # 매도
+        # 매도 - 반등 조건부 진입가 제공
         signal_type = 'sell'
         signal_name = '매도'
-        entry_price = None
-        entry_price_2 = None
-        entry_price_3 = None
-        stop_loss = None
-        target_price = None
-        strategy = '매도 신호 - 저항선 도달, 이익 실현 권장'
+
+        # 반등 시 진입 조건: 조정 후 지지 확인
+        entry_price = current_price * 0.95  # -5% 하락 시
+        entry_price_2 = current_price * 0.93  # -7% 하락 시
+        entry_price_3 = current_price * 0.90  # -10% 하락 시
+        stop_loss = current_price * 0.87  # -13%
+        target_price = current_price * 1.00  # 현재가 회복
+        strategy = '매도 권장 - 반등 조건: 조정 후 RSI 40 이하 + 지지 확인 시 진입 검토'
     else:
         # 관망 - 조건부 진입가 제공
         signal_type = 'hold'
