@@ -2225,3 +2225,173 @@ def get_detailed_trading_signal(df: pd.DataFrame) -> Dict[str, Any]:
         },
         'score': score
     }
+
+
+def get_enhanced_trading_signal(df: pd.DataFrame, holding_price: float = None) -> Dict[str, Any]:
+    """
+    강화된 매매 신호 - ChatGPT 인사이트 반영
+
+    개선 사항:
+    1. 신뢰도 점수 강화 (거래대금 추세, 수급 분석)
+    2. 매도 시그널 추가 (익절/손절 가이드)
+    3. 시장 환경 판단 (전체 시장 리스크 레벨)
+
+    Args:
+        df: OHLCV 데이터프레임
+        holding_price: 보유 평균가 (None이면 신규 매수 판단)
+
+    Returns:
+        dict: 기존 신호 + 추가 정보 (market_risk, sell_guide, volume_trend 등)
+    """
+    # 기본 신호 먼저 계산
+    base_signal = get_detailed_trading_signal(df)
+
+    if len(df) < 120:
+        return {**base_signal, 'market_risk': 'unknown', 'volume_trend': 'unknown'}
+
+    current_price = float(df['close'].iloc[-1])
+
+    # === 1. 거래대금 추세 분석 ===
+    recent_volume_3d = df['volume'].iloc[-3:].mean()
+    prev_volume_3d = df['volume'].iloc[-6:-3].mean()
+    recent_volume_5d = df['volume'].iloc[-5:].mean()
+    prev_volume_5d = df['volume'].iloc[-10:-5].mean()
+
+    volume_trend_3d = (recent_volume_3d / prev_volume_3d - 1) * 100 if prev_volume_3d > 0 else 0
+    volume_trend_5d = (recent_volume_5d / prev_volume_5d - 1) * 100 if prev_volume_5d > 0 else 0
+
+    # 거래대금 추세 판단
+    if volume_trend_3d > 100 or volume_trend_5d > 50:
+        volume_trend = 'surge'  # 급증
+        volume_trend_kr = '거래량 급증 (+{:.0f}%)'.format(max(volume_trend_3d, volume_trend_5d))
+    elif volume_trend_3d > 30:
+        volume_trend = 'increasing'  # 증가
+        volume_trend_kr = '거래량 증가 (+{:.0f}%)'.format(volume_trend_3d)
+    elif volume_trend_3d < -30:
+        volume_trend = 'decreasing'  # 감소
+        volume_trend_kr = '거래량 감소 ({:.0f}%)'.format(volume_trend_3d)
+    else:
+        volume_trend = 'stable'
+        volume_trend_kr = '거래량 안정'
+
+    # === 2. 시장 리스크 레벨 계산 ===
+    rsi = base_signal['indicators']['rsi']
+    bb_position = base_signal['indicators']['bb_position']
+    volume_ratio = base_signal['indicators']['volume_ratio']
+
+    risk_score = 0
+
+    # RSI 과열/과매도 체크
+    if rsi > 75:
+        risk_score += 30
+    elif rsi > 65:
+        risk_score += 15
+    elif rsi < 25:
+        risk_score -= 20
+    elif rsi < 35:
+        risk_score -= 10
+
+    # 볼린저밴드 위치
+    if bb_position > 90:
+        risk_score += 25
+    elif bb_position > 75:
+        risk_score += 10
+    elif bb_position < 10:
+        risk_score -= 20
+    elif bb_position < 25:
+        risk_score -= 10
+
+    # 거래량 과열
+    if volume_ratio > 3.0:
+        risk_score += 15
+    elif volume_ratio < 0.5:
+        risk_score += 10
+
+    # 시장 리스크 판단
+    if risk_score >= 40:
+        market_risk = 'high'
+        market_risk_kr = '⚠️ 고위험 (과열 구간)'
+        market_comment = '비중 축소 또는 익절 고려'
+    elif risk_score >= 20:
+        market_risk = 'medium'
+        market_risk_kr = '⚡ 중위험 (주의 필요)'
+        market_comment = '선별적 접근, 분할 매수'
+    elif risk_score <= -20:
+        market_risk = 'low'
+        market_risk_kr = '✅ 저위험 (안정 구간)'
+        market_comment = '적극적 매수 기회'
+    else:
+        market_risk = 'medium'
+        market_risk_kr = '➖ 중립'
+        market_comment = '시장 방향성 확인 필요'
+
+    # === 3. 매도 가이드 (보유 종목용) ===
+    sell_guide = None
+    sell_guide_kr = None
+
+    if holding_price:
+        profit_rate = ((current_price / holding_price) - 1) * 100
+        target_price = base_signal.get('target_price')
+        stop_loss = base_signal.get('stop_loss')
+
+        # 익절 판단
+        if target_price and current_price >= target_price * 0.95:
+            if rsi > 70 or bb_position > 80:
+                sell_guide = 'take_profit'
+                sell_guide_kr = f'💰 익절 고려 (수익률: +{profit_rate:.1f}%)'
+            else:
+                sell_guide = 'partial_profit'
+                sell_guide_kr = f'📊 일부 익절 (수익률: +{profit_rate:.1f}%)'
+
+        # 손절 판단
+        elif stop_loss and current_price <= stop_loss * 1.02:
+            if volume_trend == 'decreasing':
+                sell_guide = 'stop_loss'
+                sell_guide_kr = f'🛑 손절 경고 (손실률: {profit_rate:.1f}%)'
+            else:
+                sell_guide = 'watch_closely'
+                sell_guide_kr = f'👁️ 손절가 근접 (손실률: {profit_rate:.1f}%)'
+
+        # 추세 약화 판단
+        elif profit_rate > 0 and base_signal['signal_type'] in ['sell', 'strong_sell']:
+            sell_guide = 'reduce_position'
+            sell_guide_kr = f'📉 비중 축소 (수익률: +{profit_rate:.1f}%)'
+
+        # 보유 유지
+        elif profit_rate > -3:
+            sell_guide = 'hold'
+            sell_guide_kr = f'✋ 보유 유지 (수익률: {profit_rate:+.1f}%)'
+
+    # === 4. 신뢰도 조정 ===
+    confidence_adjustment = 0
+
+    # 거래량 증가 시 신뢰도 상승
+    if volume_trend in ['surge', 'increasing']:
+        confidence_adjustment += 10
+    elif volume_trend == 'decreasing':
+        confidence_adjustment -= 5
+
+    # 시장 리스크에 따른 조정
+    if market_risk == 'high' and base_signal['signal_type'] in ['strong_buy', 'buy']:
+        confidence_adjustment -= 15  # 과열 구간에서 매수 신호는 신뢰도 낮춤
+    elif market_risk == 'low' and base_signal['signal_type'] in ['strong_buy', 'buy', 'stable_buy']:
+        confidence_adjustment += 10  # 안정 구간에서 매수 신호는 신뢰도 높임
+
+    adjusted_confidence = min(100, max(0, base_signal['confidence'] + confidence_adjustment))
+
+    # === 5. 종합 결과 반환 ===
+    return {
+        **base_signal,
+        'confidence': round(adjusted_confidence, 1),
+        'volume_trend': volume_trend,
+        'volume_trend_kr': volume_trend_kr,
+        'volume_change_3d': round(volume_trend_3d, 1),
+        'volume_change_5d': round(volume_trend_5d, 1),
+        'market_risk': market_risk,
+        'market_risk_kr': market_risk_kr,
+        'market_comment': market_comment,
+        'risk_score': risk_score,
+        'sell_guide': sell_guide,
+        'sell_guide_kr': sell_guide_kr,
+        'holding_profit_rate': round(((current_price / holding_price) - 1) * 100, 1) if holding_price else None,
+    }

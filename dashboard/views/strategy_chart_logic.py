@@ -622,9 +622,9 @@ def _render_signal_cards(signals: list, signal_type: str, api):
             st.markdown("#### 💡 상세 매매 신호 (AI 기술적 분석)")
 
             try:
-                from dashboard.utils.indicators import get_detailed_trading_signal
+                from dashboard.utils.indicators import get_enhanced_trading_signal
 
-                signal_result = get_detailed_trading_signal(chart_data)
+                signal_result = get_enhanced_trading_signal(chart_data, holding_price=None)
             except Exception as e:
                 st.error(f"매매 신호 분석 오류: {str(e)}")
                 signal_result = None
@@ -700,8 +700,59 @@ def _render_signal_cards(signals: list, signal_type: str, api):
                     </div>
                     """, unsafe_allow_html=True)
 
+                # === 추가 정보: 시장 환경 & 거래량 추세 ===
+                st.markdown("---")
+                col_m1, col_m2, col_m3 = st.columns(3)
+
+                with col_m1:
+                    # 시장 리스크
+                    market_risk_kr = signal_result.get('market_risk_kr', '➖ 중립')
+                    market_comment = signal_result.get('market_comment', '시장 방향성 확인')
+                    st.markdown(f"""
+                    <div style='background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); padding: 1rem; border-radius: 12px; text-align: center;'>
+                        <p style='color: #ecf0f1; margin: 0; font-size: 0.85rem;'>시장 환경</p>
+                        <p style='color: white; font-size: 1.1rem; font-weight: 600; margin: 0.3rem 0;'>{market_risk_kr}</p>
+                        <p style='color: #95a5a6; margin: 0; font-size: 0.75rem;'>{market_comment}</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col_m2:
+                    # 거래량 추세
+                    volume_trend_kr = signal_result.get('volume_trend_kr', '거래량 안정')
+                    volume_change_3d = signal_result.get('volume_change_3d', 0)
+                    volume_trend = signal_result.get('volume_trend', 'stable')
+
+                    trend_color = '#11998e' if volume_trend in ['surge', 'increasing'] else '#f5576c' if volume_trend == 'decreasing' else '#888'
+
+                    st.markdown(f"""
+                    <div style='background: linear-gradient(135deg, #2c3e50 0%, #34495e 100%); padding: 1rem; border-radius: 12px; text-align: center;'>
+                        <p style='color: #ecf0f1; margin: 0; font-size: 0.85rem;'>거래량 추세</p>
+                        <p style='color: {trend_color}; font-size: 1.1rem; font-weight: 600; margin: 0.3rem 0;'>{volume_trend_kr}</p>
+                        <p style='color: #95a5a6; margin: 0; font-size: 0.75rem;'>3일 평균 변화</p>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                with col_m3:
+                    # 매도 가이드 (보유 중인 경우만)
+                    sell_guide_kr = signal_result.get('sell_guide_kr')
+
+                    if sell_guide_kr:
+                        st.markdown(f"""
+                        <div style='background: linear-gradient(135deg, #8e44ad 0%, #9b59b6 100%); padding: 1rem; border-radius: 12px; text-align: center;'>
+                            <p style='color: #ecf0f1; margin: 0; font-size: 0.85rem;'>보유 가이드</p>
+                            <p style='color: white; font-size: 1.0rem; font-weight: 600; margin: 0.3rem 0;'>{sell_guide_kr}</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                    else:
+                        st.markdown(f"""
+                        <div style='background: linear-gradient(135deg, #34495e 0%, #2c3e50 100%); padding: 1rem; border-radius: 12px; text-align: center;'>
+                            <p style='color: #95a5a6; margin: 0; font-size: 0.85rem;'>보유 가이드</p>
+                            <p style='color: #7f8c8d; font-size: 0.9rem; font-weight: 500; margin: 0.3rem 0;'>신규 매매 분석</p>
+                        </div>
+                        """, unsafe_allow_html=True)
+
                 # 출처 표시
-                st.caption("📚 **신호 출처:** [볼린저밴드 가이드](https://www.xs.com/ko/blog/볼린저밴드/), [RSI/MACD 분석](https://moneyrecipe.blog/rsi-macd-bollingerband-limitations/), [기술적 분석 지표](https://jackerlab.com/futures-trading-technical-indicators-timeframe-guide/)")
+                st.caption("📚 **신호 출처:** [볼린저밴드 가이드](https://www.xs.com/ko/blog/볼린저밴드/), [RSI/MACD 분석](https://moneyrecipe.blog/rsi-macd-bollingerband-limitations/), [기술적 분석 지표](https://jackerlab.com/futures-trading-technical-indicators-timeframe-guide/) | 💡 **개선:** ChatGPT 전문가 인사이트 반영")
 
         if st.button("❌ 차트 닫기", key=f"ct_close_signal_chart_{signal_type}"):
             st.session_state['ct_signal_chart_code'] = None
