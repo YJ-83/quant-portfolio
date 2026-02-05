@@ -617,6 +617,80 @@ def _render_signal_cards(signals: list, signal_type: str, api):
 
             st.plotly_chart(fig, use_container_width=True, key=f"ct_signal_chart_{signal_type}_{code}")
 
+            # ========== 매매 신호 세분화 표시 (새로 추가) ==========
+            st.markdown("---")
+            st.markdown("#### 💡 상세 매매 신호 (AI 기술적 분석)")
+
+            from dashboard.utils.indicators import get_detailed_trading_signal
+
+            signal_result = get_detailed_trading_signal(chart_data)
+
+            # 신호 타입별 색상 및 이모지
+            signal_colors = {
+                'strong_buy': ('#00C853', '🟢', 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)'),
+                'buy': ('#4CAF50', '🟢', 'linear-gradient(135deg, #56ab2f 0%, #a8e063 100%)'),
+                'stable_buy': ('#8BC34A', '🟡', 'linear-gradient(135deg, #7f7fd5 0%, #86a8e7 100%)'),
+                'hold': ('#FFC107', '⚪', 'linear-gradient(135deg, #FFB75E 0%, #ED8F03 100%)'),
+                'sell': ('#FF5722', '🔴', 'linear-gradient(135deg, #f12711 0%, #f5af19 100%)'),
+                'strong_sell': ('#F44336', '🔴', 'linear-gradient(135deg, #c31432 0%, #240b36 100%)')
+            }
+
+            sig_type = signal_result['signal_type']
+            sig_name = signal_result['signal_name']
+            confidence = signal_result['confidence']
+            strategy = signal_result['strategy']
+            indicators = signal_result['indicators']
+
+            color, emoji, gradient = signal_colors.get(sig_type, ('#888', '⚪', 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)'))
+
+            # 신호 카드
+            col1, col2, col3 = st.columns([2, 2, 3])
+
+            with col1:
+                st.markdown(f"""
+                <div style='background: {gradient}; padding: 1.5rem; border-radius: 16px; text-align: center; border: 2px solid {color};'>
+                    <p style='color: white; margin: 0; font-size: 1rem; opacity: 0.9;'>매매 신호</p>
+                    <p style='color: white; font-size: 2.5rem; font-weight: 700; margin: 0.5rem 0;'>{emoji} {sig_name}</p>
+                    <p style='color: white; margin: 0; font-size: 0.9rem; opacity: 0.8;'>신뢰도: {confidence:.1f}%</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            with col2:
+                # 가격 정보
+                entry_price = signal_result.get('entry_price')
+                stop_loss = signal_result.get('stop_loss')
+                target_price = signal_result.get('target_price')
+
+                price_html = "<div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1.5rem; border-radius: 16px; border: 1px solid #333;'>"
+                if entry_price:
+                    price_html += f"<p style='color: #888; margin: 0; font-size: 0.85rem;'>권장 진입가</p>"
+                    price_html += f"<p style='color: #11998e; font-size: 1.5rem; font-weight: 700; margin: 0.3rem 0;'>{entry_price:,.0f}원</p>"
+                if stop_loss:
+                    price_html += f"<p style='color: #f5576c; font-size: 0.95rem; margin: 0.2rem 0;'>손절가: {stop_loss:,.0f}원</p>"
+                if target_price:
+                    price_html += f"<p style='color: #667eea; font-size: 0.95rem; margin: 0.2rem 0;'>목표가: {target_price:,.0f}원</p>"
+                if not entry_price:
+                    price_html += f"<p style='color: #888; margin: 0; text-align: center; padding: 1rem 0;'>매수 신호 아님</p>"
+                price_html += "</div>"
+                st.markdown(price_html, unsafe_allow_html=True)
+
+            with col3:
+                # 전략 설명 및 지표
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1.5rem; border-radius: 16px; border: 1px solid #333;'>
+                    <p style='color: white; font-weight: 600; margin: 0 0 0.5rem 0; font-size: 0.95rem;'>{strategy}</p>
+                    <div style='display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; font-size: 0.85rem;'>
+                        <div><span style='color: #888;'>RSI:</span> <span style='color: white;'>{indicators['rsi']:.1f}</span></div>
+                        <div><span style='color: #888;'>MACD:</span> <span style='color: white;'>{indicators['macd']:.2f}</span></div>
+                        <div><span style='color: #888;'>BB위치:</span> <span style='color: white;'>{indicators['bb_position']:.1f}%</span></div>
+                        <div><span style='color: #888;'>거래량:</span> <span style='color: white;'>{indicators['volume_ratio']:.1f}배</span></div>
+                    </div>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # 출처 표시
+            st.caption("📚 **신호 출처:** [볼린저밴드 가이드](https://www.xs.com/ko/blog/볼린저밴드/), [RSI/MACD 분석](https://moneyrecipe.blog/rsi-macd-bollingerband-limitations/), [기술적 분석 지표](https://jackerlab.com/futures-trading-technical-indicators-timeframe-guide/)")
+
         if st.button("❌ 차트 닫기", key=f"ct_close_signal_chart_{signal_type}"):
             st.session_state['ct_signal_chart_code'] = None
             st.rerun()

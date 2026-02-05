@@ -1972,3 +1972,237 @@ def calculate_volume_profile(df: pd.DataFrame, num_bins: int = 30) -> tuple:
         poc_price = None
 
     return price_levels, volumes, poc_price
+
+
+# ========== 매수/매도 신호 세분화 (5단계) ==========
+
+def get_detailed_trading_signal(df: pd.DataFrame) -> Dict[str, Any]:
+    """
+    기술적 분석 기반 상세 매매 신호 (5단계 세분화)
+
+    웹 검색 기반 전문가 전략:
+    - RSI, MACD, 볼린저밴드, 이동평균선, 거래량 종합 분석
+    - 보수적/안정적/적극적 매수 신호 구분
+    - 진입가, 손절가, 목표가 자동 계산
+
+    출처:
+    - 볼린저밴드: https://www.xs.com/ko/blog/볼린저밴드/
+    - RSI/MACD: https://moneyrecipe.blog/rsi-macd-bollingerband-limitations/
+    - 기술적 분석: https://jackerlab.com/futures-trading-technical-indicators-timeframe-guide/
+
+    Args:
+        df: OHLCV 데이터프레임 (컬럼: open, high, low, close, volume)
+
+    Returns:
+        dict: {
+            'signal_type': str,  # 'strong_buy', 'buy', 'stable_buy', 'hold', 'sell', 'strong_sell'
+            'signal_name': str,  # 한글 신호명
+            'confidence': float,  # 신뢰도 (0-100)
+            'entry_price': float,  # 권장 진입가
+            'stop_loss': float,  # 손절가
+            'target_price': float,  # 목표가
+            'strategy': str,  # 전략 설명
+            'indicators': dict,  # 개별 지표 값
+        }
+    """
+    if len(df) < 120:
+        return {
+            'signal_type': 'hold',
+            'signal_name': '관망',
+            'confidence': 0,
+            'entry_price': None,
+            'stop_loss': None,
+            'target_price': None,
+            'strategy': '데이터 부족',
+            'indicators': {}
+        }
+
+    current_price = float(df['close'].iloc[-1])
+
+    # 1. RSI 계산
+    rsi = calculate_rsi(df['close'], period=14)
+
+    # 2. MACD 계산
+    ema12 = df['close'].ewm(span=12, adjust=False).mean()
+    ema26 = df['close'].ewm(span=26, adjust=False).mean()
+    macd_line = ema12 - ema26
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    macd_hist = macd_line - signal_line
+
+    current_macd = float(macd_line.iloc[-1])
+    current_signal = float(signal_line.iloc[-1])
+    current_hist = float(macd_hist.iloc[-1])
+    prev_hist = float(macd_hist.iloc[-2])
+
+    macd_golden_cross = current_macd > current_signal and prev_hist < 0 < current_hist
+    macd_death_cross = current_macd < current_signal and prev_hist > 0 > current_hist
+    macd_bullish = current_macd > current_signal
+
+    # 3. 볼린저밴드 계산 (20일, 2 표준편차)
+    bb_period = 20
+    bb_mid = df['close'].rolling(window=bb_period).mean()
+    bb_std = df['close'].rolling(window=bb_period).std()
+    bb_upper = bb_mid + (bb_std * 2)
+    bb_lower = bb_mid - (bb_std * 2)
+
+    current_bb_mid = float(bb_mid.iloc[-1])
+    current_bb_upper = float(bb_upper.iloc[-1])
+    current_bb_lower = float(bb_lower.iloc[-1])
+
+    bb_position = (current_price - current_bb_lower) / (current_bb_upper - current_bb_lower) if current_bb_upper > current_bb_lower else 0.5
+
+    # 4. 이동평균선 (20일, 60일)
+    ma20 = float(df['close'].rolling(window=20).mean().iloc[-1])
+    ma60 = float(df['close'].rolling(window=60).mean().iloc[-1])
+
+    # 5. 거래량 분석
+    vol_ma20 = float(df['volume'].rolling(window=20).mean().iloc[-1])
+    current_volume = float(df['volume'].iloc[-1])
+    volume_ratio = current_volume / vol_ma20 if vol_ma20 > 0 else 1.0
+
+    # 점수 계산 (종합 신호)
+    score = 0
+    confidence = 50
+
+    # RSI 점수
+    if rsi < 30:
+        score += 15
+        confidence += 15
+    elif rsi < 40:
+        score += 10
+        confidence += 10
+    elif rsi < 50:
+        score += 5
+        confidence += 5
+    elif rsi > 70:
+        score -= 15
+        confidence += 15
+    elif rsi > 60:
+        score -= 10
+        confidence += 10
+
+    # MACD 점수
+    if macd_golden_cross:
+        score += 15
+        confidence += 15
+    elif macd_bullish:
+        score += 8
+        confidence += 8
+    elif macd_death_cross:
+        score -= 15
+        confidence += 15
+    elif not macd_bullish:
+        score -= 8
+        confidence += 8
+
+    # 볼린저밴드 점수
+    if bb_position < 0.2:  # 하단 근처
+        score += 12
+        confidence += 10
+    elif bb_position < 0.4:
+        score += 6
+        confidence += 5
+    elif bb_position > 0.8:  # 상단 근처
+        score -= 12
+        confidence += 10
+    elif bb_position > 0.6:
+        score -= 6
+        confidence += 5
+
+    # 이동평균선 점수
+    if current_price > ma20 > ma60:  # 정배열
+        score += 8
+        confidence += 8
+    elif current_price > ma20:
+        score += 4
+        confidence += 4
+    elif current_price < ma20 < ma60:  # 역배열
+        score -= 8
+        confidence += 8
+    elif current_price < ma20:
+        score -= 4
+        confidence += 4
+
+    # 거래량 점수
+    if volume_ratio > 2.0:
+        score += 5
+        confidence += 5
+    elif volume_ratio > 1.5:
+        score += 3
+        confidence += 3
+
+    confidence = min(100, confidence)
+
+    # 신호 결정 및 가격 계산
+    signal_type = 'hold'
+    signal_name = '관망'
+    entry_price = current_price
+    stop_loss = None
+    target_price = None
+    strategy = ''
+
+    if score >= 30:
+        # 강한 매수 (공격적)
+        signal_type = 'strong_buy'
+        signal_name = '강한 매수'
+        entry_price = current_price
+        stop_loss = current_price * 0.97  # -3%
+        target_price = current_price * 1.15  # +15%
+        strategy = '공격적 전략 - RSI 과매도 + MACD 골든크로스 + 볼린저 하단'
+    elif score >= 15:
+        # 매수 (적극적)
+        signal_type = 'buy'
+        signal_name = '매수'
+        entry_price = current_price
+        stop_loss = current_price * 0.95  # -5%
+        target_price = current_price * 1.10  # +10%
+        strategy = '적극적 전략 - 기술적 지표 긍정적 신호'
+    elif score >= 5:
+        # 안정적 매수 (보수적)
+        signal_type = 'stable_buy'
+        signal_name = '안정적 매수'
+        entry_price = current_price * 0.98  # -2% 대기
+        stop_loss = current_price * 0.93  # -7%
+        target_price = current_price * 1.08  # +8%
+        strategy = '보수적 전략 - 분할 매수 권장, 20일선 지지 확인'
+    elif score <= -30:
+        # 강한 매도
+        signal_type = 'strong_sell'
+        signal_name = '강한 매도'
+        entry_price = None
+        stop_loss = None
+        target_price = None
+        strategy = '즉시 매도 - RSI 과매수 + MACD 데드크로스 + 볼린저 상단'
+    elif score <= -15:
+        # 매도
+        signal_type = 'sell'
+        signal_name = '매도'
+        entry_price = None
+        stop_loss = None
+        target_price = None
+        strategy = '매도 신호 - 저항선 도달, 이익 실현 권장'
+    else:
+        # 관망
+        signal_type = 'hold'
+        signal_name = '관망'
+        strategy = '중립 - 명확한 신호 대기'
+
+    return {
+        'signal_type': signal_type,
+        'signal_name': signal_name,
+        'confidence': round(confidence, 1),
+        'entry_price': round(entry_price, 0) if entry_price else None,
+        'stop_loss': round(stop_loss, 0) if stop_loss else None,
+        'target_price': round(target_price, 0) if target_price else None,
+        'strategy': strategy,
+        'indicators': {
+            'rsi': round(rsi, 1),
+            'macd': round(current_macd, 2),
+            'macd_signal': round(current_signal, 2),
+            'bb_position': round(bb_position * 100, 1),  # 0-100%
+            'ma20': round(ma20, 0),
+            'ma60': round(ma60, 0),
+            'volume_ratio': round(volume_ratio, 2),
+        },
+        'score': score
+    }
