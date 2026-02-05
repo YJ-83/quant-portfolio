@@ -908,6 +908,11 @@ def _render_chart_strategy_simulation():
                     # ========== 추세선 추가 (저점/고점 연결) ==========
                     from scipy import stats
 
+                    # 가격 범위 계산 (Y축 클리핑용)
+                    price_high = price_data['high'].max()
+                    price_low = price_data['low'].min()
+                    price_margin = (price_high - price_low) * 0.1  # 10% 여유
+
                     # 상승 추세선 (저점 연결)
                     if len(swing_low_idx) >= 2:
                         recent_lows = swing_low_idx[-5:] if len(swing_low_idx) >= 5 else swing_low_idx
@@ -920,6 +925,11 @@ def _render_chart_strategy_simulation():
                             tl_x_end = len(price_data) - 1
                             tl_y_start = slope * tl_x_start + intercept
                             tl_y_end = slope * tl_x_end + intercept
+
+                            # Y값 클리핑 (차트 범위 내로 제한)
+                            tl_y_start = max(price_low - price_margin, min(price_high + price_margin, tl_y_start))
+                            tl_y_end = max(price_low - price_margin, min(price_high + price_margin, tl_y_end))
+
                             tl_date_start = x_data.iloc[tl_x_start] if hasattr(x_data, 'iloc') else x_data[tl_x_start]
                             tl_date_end = x_data.iloc[tl_x_end] if hasattr(x_data, 'iloc') else x_data[tl_x_end]
 
@@ -945,6 +955,11 @@ def _render_chart_strategy_simulation():
                             tl_x_end = len(price_data) - 1
                             tl_y_start = slope * tl_x_start + intercept
                             tl_y_end = slope * tl_x_end + intercept
+
+                            # Y값 클리핑 (차트 범위 내로 제한)
+                            tl_y_start = max(price_low - price_margin, min(price_high + price_margin, tl_y_start))
+                            tl_y_end = max(price_low - price_margin, min(price_high + price_margin, tl_y_end))
+
                             tl_date_start = x_data.iloc[tl_x_start] if hasattr(x_data, 'iloc') else x_data[tl_x_start]
                             tl_date_end = x_data.iloc[tl_x_end] if hasattr(x_data, 'iloc') else x_data[tl_x_end]
 

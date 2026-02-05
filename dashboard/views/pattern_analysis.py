@@ -812,7 +812,13 @@ def _draw_trendline_chart(result: Dict, chart_data: Dict, is_mobile: bool):
     # 3. 상승 추세선 계산 (저점 연결)
     try:
         lows_arr = np.array(lows)
+        highs_arr = np.array(highs)
         x_indices = np.arange(len(lows_arr))
+
+        # 가격 범위 계산 (Y축 클리핑용)
+        price_high = max(highs)
+        price_low = min(lows)
+        price_margin = (price_high - price_low) * 0.1  # 10% 여유
 
         # 저점 찾기 (로컬 최소값)
         swing_lows = []
@@ -834,6 +840,9 @@ def _draw_trendline_chart(result: Dict, chart_data: Dict, is_mobile: bool):
             # 상승 추세선만 표시 (기울기 > 0)
             if slope > 0:
                 trendline_y = [slope * i + intercept for i in range(len(dates))]
+                # Y값 클리핑 (차트 범위 내로 제한)
+                trendline_y = [max(price_low - price_margin, min(price_high + price_margin, y)) for y in trendline_y]
+
                 fig.add_trace(go.Scatter(
                     x=dates,
                     y=trendline_y,
@@ -846,7 +855,13 @@ def _draw_trendline_chart(result: Dict, chart_data: Dict, is_mobile: bool):
 
     # 4. 하락 추세선 계산 (고점 연결)
     try:
-        highs_arr = np.array(highs)
+        if 'highs_arr' not in locals():
+            highs_arr = np.array(highs)
+
+        if 'price_high' not in locals():
+            price_high = max(highs)
+            price_low = min(lows)
+            price_margin = (price_high - price_low) * 0.1
 
         # 고점 찾기 (로컬 최대값)
         swing_highs = []
@@ -866,6 +881,9 @@ def _draw_trendline_chart(result: Dict, chart_data: Dict, is_mobile: bool):
             # 하락 추세선만 표시 (기울기 < 0)
             if slope < 0:
                 trendline_y = [slope * i + intercept for i in range(len(dates))]
+                # Y값 클리핑 (차트 범위 내로 제한)
+                trendline_y = [max(price_low - price_margin, min(price_high + price_margin, y)) for y in trendline_y]
+
                 fig.add_trace(go.Scatter(
                     x=dates,
                     y=trendline_y,
