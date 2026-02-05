@@ -2194,15 +2194,27 @@ def get_detailed_trading_signal(df: pd.DataFrame) -> Dict[str, Any]:
         target_price = None
         strategy = '매도 신호 - 저항선 도달, 이익 실현 권장'
     else:
-        # 관망
+        # 관망 - 조건부 진입가 제공
         signal_type = 'hold'
         signal_name = '관망'
-        entry_price = None
-        entry_price_2 = None
-        entry_price_3 = None
-        stop_loss = None
-        target_price = None
-        strategy = '중립 - 명확한 신호 대기'
+
+        # 관망일 때도 조건부 진입가 제공
+        if current_price > ma20:
+            # 가격이 20일선 위 - 조정 시 진입
+            entry_price = ma20  # 20일선 지지
+            entry_price_2 = current_price * 0.97  # -3% 조정
+            entry_price_3 = current_price * 0.95  # -5% 조정
+            stop_loss = ma20 * 0.95  # 20일선 -5%
+            target_price = current_price * 1.05  # +5%
+            strategy = '조정 시 매수 - 20일선 지지 확인 후 진입'
+        else:
+            # 가격이 20일선 아래 - 돌파 시 진입
+            entry_price = ma20 * 1.01  # 20일선 +1% 돌파
+            entry_price_2 = ma20 * 1.03  # +3% 돌파 확인
+            entry_price_3 = None
+            stop_loss = current_price * 0.95  # 현재가 -5%
+            target_price = ma20 * 1.08  # 20일선 +8%
+            strategy = '추세 전환 대기 - 20일선 돌파 시 진입'
 
     return {
         'signal_type': signal_type,

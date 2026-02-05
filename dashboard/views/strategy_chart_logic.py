@@ -621,10 +621,29 @@ def _render_signal_cards(signals: list, signal_type: str, api):
             st.markdown("---")
             st.markdown("#### 💡 상세 매매 신호 (AI 기술적 분석)")
 
+            # 보유 평균가 입력 UI
+            col_hold1, col_hold2 = st.columns([3, 1])
+            with col_hold1:
+                holding_price_input = st.number_input(
+                    "📊 보유 평균가 입력 (선택사항)",
+                    min_value=0,
+                    value=0,
+                    step=100,
+                    help="보유 중인 종목이라면 평균 매수가를 입력하세요. 익절/손절 가이드가 제공됩니다.",
+                    key=f"ct_holding_price_{code}"
+                )
+            with col_hold2:
+                st.markdown("<div style='height: 30px;'></div>", unsafe_allow_html=True)
+                if holding_price_input > 0:
+                    st.success(f"✅ {holding_price_input:,.0f}원")
+
+            # 보유가 입력 여부에 따라 분석
+            holding_price = holding_price_input if holding_price_input > 0 else None
+
             try:
                 from dashboard.utils.indicators import get_enhanced_trading_signal
 
-                signal_result = get_enhanced_trading_signal(chart_data, holding_price=None)
+                signal_result = get_enhanced_trading_signal(chart_data, holding_price=holding_price)
             except Exception as e:
                 st.error(f"매매 신호 분석 오류: {str(e)}")
                 signal_result = None
