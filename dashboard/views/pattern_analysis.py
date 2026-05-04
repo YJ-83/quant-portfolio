@@ -10,6 +10,14 @@ from typing import List, Dict, Tuple
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+# 시총·상장주식수 캐시 + 200MA·피보나치 confluence
+from data.market_data_cache import (
+    get_market_cap_for,
+    format_market_cap,
+    format_shares,
+)
+from utils.fibonacci import detect_ma200_fibonacci_confluence
+
 # 한국 시간대
 KST = timezone(timedelta(hours=9))
 
@@ -708,6 +716,41 @@ def _display_stock_card(result: Dict, is_mobile: bool):
 
     reasons_html = "<br>".join([f"• {r}" for r in result.get('reasons', [])[:5]])
 
+    # 시총·상장주식수 lookup (일괄 캐시)
+    try:
+        _cap_info = get_market_cap_for(result.get('code', '')) or {}
+        _cap_val = int(_cap_info.get('market_cap', 0))
+        _shares_val = int(_cap_info.get('shares', 0))
+    except Exception:
+        _cap_val = _shares_val = 0
+    _cap_str = format_market_cap(_cap_val) if _cap_val else '-'
+    _shares_str = format_shares(_shares_val) if _shares_val else '-'
+
+    # 200MA + 피보나치 confluence (chart_data가 있고 200일 이상이면)
+    _conf_html = ""
+    try:
+        cd = result.get('chart_data') or {}
+        closes = cd.get('close')
+        if closes is not None and len(closes) >= 200:
+            close_series = pd.Series(closes)
+            conf = detect_ma200_fibonacci_confluence(close_series, lookback=120, tolerance_pct=2.0)
+            if conf and conf.get('matched'):
+                best = conf['matched'][0]
+                zone = conf.get('price_zone', '중립')
+                zone_color = {
+                    '지지권': '#00ff00', '저항권': '#ff4444',
+                    '근접': '#ffbb33', '중립': '#888',
+                }.get(zone, '#888')
+                _conf_html = (
+                    f"<div style='margin-top: 8px; padding: 6px 10px; background: #0d1421; "
+                    f"border-left: 3px solid {zone_color}; border-radius: 4px;'>"
+                    f"<span style='color: {zone_color}; font-weight: 700;'>⚡ 200MA·피보 {best['level']} confluence</span> "
+                    f"<span style='color: #aaa;'>({zone}) · 200MA {conf['ma200']:,.0f}원 · "
+                    f"레벨가 {best['price']:,.0f}원</span></div>"
+                )
+    except Exception:
+        pass
+
     st.markdown(f"""
     <div style='background: #1a1a2e; border: 2px solid {border_color}; border-radius: 12px;
                 padding: 15px; margin: 10px 0;'>
@@ -739,7 +782,16 @@ def _display_stock_card(result: Dict, is_mobile: bool):
                 <span style='color: #888;'>거래량</span><br>
                 <span style='color: #fff; font-size: 1.1rem;'>{result.get('volume_ratio', 1):.1f}x</span>
             </div>
+            <div>
+                <span style='color: #888;'>시가총액</span><br>
+                <span style='color: #fff; font-size: 1.05rem; font-weight: 600;'>{_cap_str}</span>
+            </div>
+            <div>
+                <span style='color: #888;'>상장주식수</span><br>
+                <span style='color: #fff; font-size: 1.05rem; font-weight: 600;'>{_shares_str}</span>
+            </div>
         </div>
+        {_conf_html}
         <div style='margin-top: 10px; padding-top: 10px; border-top: 1px solid #333;'>
             <span style='color: #888; font-size: 0.85rem;'>분석 근거:</span>
             <p style='color: #aaa; font-size: 0.85rem; margin: 5px 0;'>{reasons_html}</p>
@@ -1283,9 +1335,19 @@ def _display_chart_comparison(results: List[Dict], is_mobile: bool):
 
         pattern_text = ', '.join(patterns[:3]) if patterns else '-'
 
+        # 시총·상장주식수 lookup
+        try:
+            _ci = get_market_cap_for(r.get('code', '')) or {}
+            _cv = int(_ci.get('market_cap', 0))
+            _sv = int(_ci.get('shares', 0))
+        except Exception:
+            _cv = _sv = 0
+
         comparison_data.append({
             '종목': r['name'],
             '현재가': f"{r.get('current_price', 0):,.0f}",
+            '시가총액': format_market_cap(_cv),
+            '상장주식수': format_shares(_sv),
             '5일%': f"{change_5d:+.2f}",
             'RSI': f"{rsi_status}{rsi:.1f}",
             'MACD': macd_text,
@@ -1305,6 +1367,8 @@ def _display_chart_comparison(results: List[Dict], is_mobile: bool):
         column_config={
             '종목': st.column_config.TextColumn('종목', width='medium'),
             '현재가': st.column_config.TextColumn('현재가', width='small'),
+            '시가총액': st.column_config.TextColumn('시총', width='small'),
+            '상장주식수': st.column_config.TextColumn('상장주식수', width='small'),
             '5일%': st.column_config.TextColumn('5일', width='small'),
             'RSI': st.column_config.TextColumn('RSI', width='small'),
             'MACD': st.column_config.TextColumn('MACD', width='small'),
