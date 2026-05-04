@@ -19,6 +19,19 @@ sys.path.insert(0, PROJECT_ROOT)
 # 종목 리스트 import
 from data.stock_list import get_kospi_stocks, get_kosdaq_stocks
 
+# 시총·상장주식수 일괄 캐시
+from data.market_data_cache import (
+    get_market_cap_dict,
+    format_market_cap,
+    format_shares,
+)
+
+# 피보나치 되돌림 + 200MA confluence
+from utils.fibonacci import (
+    fibonacci_retracement_levels,
+    detect_ma200_fibonacci_confluence,
+)
+
 # 공통 API 헬퍼 import
 from dashboard.utils.api_helper import get_api_connection
 
@@ -350,7 +363,18 @@ def _render_condition_screener(api):
         if use_ma:
             ma_condition = st.selectbox(
                 "조건",
-                ["골든크로스 (5일>20일)", "데드크로스 (5일<20일)", "정배열 (5>20>60)", "역배열 (5<20<60)", "20일선 돌파"],
+                [
+                    "골든크로스 (5일>20일)",
+                    "데드크로스 (5일<20일)",
+                    "정배열 (5>20>60)",
+                    "역배열 (5<20<60)",
+                    "20일선 돌파",
+                    "장기 골든크로스 (50>200)",
+                    "장기 데드크로스 (50<200)",
+                    "완전 정배열 (5>10>20>50>100>200)",
+                    "200일선 위 (장기 강세)",
+                    "200MA·피보나치 confluence",
+                ],
                 key="ma_condition"
             )
 
@@ -1079,6 +1103,16 @@ def _run_advanced_scan(api, market: str, theme_filter: list, sector_filter: str 
 
     progress_bar.empty()
     status_text.empty()
+
+    # 시총·상장주식수 일괄 조회 후 결과에 부착 (단 1회 pykrx 호출)
+    try:
+        cap_table = get_market_cap_dict("ALL")
+        for r in results:
+            cap_info = cap_table.get(str(r.get('code', '')), {})
+            r['market_cap'] = int(cap_info.get('market_cap', 0))
+            r['shares'] = int(cap_info.get('shares', 0))
+    except Exception:
+        pass
 
     st.session_state['advanced_results'] = results
 
@@ -2184,8 +2218,12 @@ def _render_screener_results():
             df['거래량비'] = df['volume_ratio'].apply(lambda x: f"{x:.1f}배")
         if 'rsi' in df.columns:
             df['RSI'] = df['rsi'].apply(lambda x: f"{x:.1f}")
+        if 'market_cap' in df.columns:
+            df['시가총액'] = df['market_cap'].apply(format_market_cap)
+        if 'shares' in df.columns:
+            df['상장주식수'] = df['shares'].apply(format_shares)
 
-        display_cols = ['code', 'name', '등락률', 'RSI', '거래량비', 'signal']
+        display_cols = ['code', 'name', '등락률', 'RSI', '거래량비', '시가총액', '상장주식수', 'signal']
         display_cols = [c for c in display_cols if c in df.columns]
 
         st.dataframe(df[display_cols], use_container_width=True, hide_index=True)
@@ -2279,6 +2317,16 @@ def _collect_conditions():
             conditions['ma_aligned_up'] = True
         elif ma_cond == "역배열 (5<20<60)":
             conditions['ma_aligned_down'] = True
+        elif ma_cond == "장기 골든크로스 (50>200)":
+            conditions['ma_golden_cross_50_200'] = True
+        elif ma_cond == "장기 데드크로스 (50<200)":
+            conditions['ma_dead_cross_50_200'] = True
+        elif ma_cond == "완전 정배열 (5>10>20>50>100>200)":
+            conditions['ma_full_aligned_up'] = True
+        elif ma_cond == "200일선 위 (장기 강세)":
+            conditions['above_ma200'] = True
+        elif ma_cond == "200MA·피보나치 confluence":
+            conditions['ma200_fib_confluence'] = True
 
     # 펀더멘털 필터
     if st.session_state.get('use_per'):
@@ -2333,6 +2381,12 @@ def _run_screener(api, conditions: dict, market: str, max_results: int) -> list:
     max_scan = min(500, len(stocks_to_scan))
     stocks_to_scan = stocks_to_scan[:max_scan]
 
+    # 시총·상장주식수 일괄 prefetch (전 종목 단 1회 pykrx 호출)
+    try:
+        _market_cap_table = get_market_cap_dict("ALL")
+    except Exception:
+        _market_cap_table = {}
+
     # 진행률 표시
     progress_bar = st.progress(0)
     status_text = st.empty()
@@ -2373,8 +2427,12 @@ def _run_screener(api, conditions: dict, market: str, max_results: int) -> list:
 
             # 이동평균선 계산
             ma5 = close.rolling(5).mean().iloc[-1] if len(close) >= 5 else current_price
+            ma10 = close.rolling(10).mean().iloc[-1] if len(close) >= 10 else current_price
             ma20 = close.rolling(20).mean().iloc[-1] if len(close) >= 20 else current_price
+            ma50 = close.rolling(50).mean().iloc[-1] if len(close) >= 50 else current_price
             ma60 = close.rolling(60).mean().iloc[-1] if len(close) >= 60 else current_price
+            ma100 = close.rolling(100).mean().iloc[-1] if len(close) >= 100 else current_price
+            ma200 = close.rolling(200).mean().iloc[-1] if len(close) >= 200 else current_price
 
             # 조건 체크
             match = True
@@ -2501,8 +2559,52 @@ def _run_screener(api, conditions: dict, market: str, max_results: int) -> list:
                 else:
                     matched_signals.append("역배열")
 
+            # 50/200 골든·데드 크로스 (장기 추세 전환)
+            if conditions.get('ma_golden_cross_50_200') and len(close) >= 201:
+                prev_ma50 = close.rolling(50).mean().iloc[-2]
+                prev_ma200 = close.rolling(200).mean().iloc[-2]
+                if not (prev_ma50 < prev_ma200 and ma50 > ma200):
+                    match = False
+                else:
+                    matched_signals.append("50/200 골든크로스")
+
+            if conditions.get('ma_dead_cross_50_200') and len(close) >= 201:
+                prev_ma50 = close.rolling(50).mean().iloc[-2]
+                prev_ma200 = close.rolling(200).mean().iloc[-2]
+                if not (prev_ma50 > prev_ma200 and ma50 < ma200):
+                    match = False
+                else:
+                    matched_signals.append("50/200 데드크로스")
+
+            # 완전 정배열 (5>10>20>50>100>200) - 강한 상승 추세
+            if conditions.get('ma_full_aligned_up') and len(close) >= 200:
+                if not (ma5 > ma10 > ma20 > ma50 > ma100 > ma200):
+                    match = False
+                else:
+                    matched_signals.append("완전 정배열")
+
+            # 200일선 위 (장기 강세 종목 필터)
+            if conditions.get('above_ma200') and len(close) >= 200:
+                if not (current_price > ma200):
+                    match = False
+                else:
+                    pct_above = (current_price - ma200) / ma200 * 100
+                    matched_signals.append(f"200MA 위 +{pct_above:.1f}%")
+
+            # 200MA + 피보나치 confluence (강한 지지/저항)
+            if conditions.get('ma200_fib_confluence') and len(close) >= 200:
+                conf = detect_ma200_fibonacci_confluence(close, lookback=120, tolerance_pct=2.0)
+                if not conf or not conf.get('matched'):
+                    match = False
+                else:
+                    best = conf['matched'][0]  # 가장 가까운 매칭
+                    matched_signals.append(
+                        f"200MA·피보 {best['level']} confluence ({conf['price_zone']})"
+                    )
+
             # 조건 충족 시 결과에 추가
             if match:
+                cap_info = _market_cap_table.get(str(code), {}) if _market_cap_table else {}
                 results.append({
                     "code": code,
                     "name": name,
@@ -2511,6 +2613,8 @@ def _run_screener(api, conditions: dict, market: str, max_results: int) -> list:
                     "change_rate": round(change_rate, 2),
                     "rsi": round(rsi, 1),
                     "volume_ratio": round(volume_ratio, 1),
+                    "market_cap": int(cap_info.get("market_cap", 0)),
+                    "shares": int(cap_info.get("shares", 0)),
                     "signal": ", ".join(matched_signals) if matched_signals else "조건 충족"
                 })
                 found += 1

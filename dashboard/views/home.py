@@ -431,6 +431,93 @@ def _get_chart_technical_analysis(_api, code: str) -> dict:
         return None
 
 
+def _render_fib_ma200_section(api, code: str, stock_name: str):
+    """200일선 + 피보나치 되돌림 confluence 분석 섹션.
+
+    웹 리서치 인사이트:
+    - 0.382 / 0.5 / 0.618 되돌림 레벨이 200MA와 ±2% 이내로 겹치면 강한 지지/저항.
+    - 정배열 + confluence = 추세 매수 지점 후보, 역배열 + confluence = 매도 후보.
+    """
+    if api is None:
+        return
+    try:
+        from utils.fibonacci import (
+            fibonacci_retracement_levels,
+            detect_ma200_fibonacci_confluence,
+            fibonacci_summary_text,
+        )
+        df = api.get_daily_price(code, period="D")
+        if df is None or df.empty or len(df) < 60:
+            return
+        close = df['close']
+
+        st.markdown("---")
+        st.markdown("#### 📐 200MA + 피보나치 되돌림 분석")
+
+        fib = fibonacci_retracement_levels(close, lookback=120)
+        conf = detect_ma200_fibonacci_confluence(close, lookback=120, tolerance_pct=2.0) \
+            if len(close) >= 200 else None
+
+        col1, col2 = st.columns([2, 1])
+        with col1:
+            if not fib:
+                st.info("최근 120일 구간에서 의미있는 저점/고점을 찾지 못했습니다.")
+            else:
+                direction_label = "📈 상승추세 (저점→고점)" if fib['direction'] == 'up' else "📉 하락추세 (고점→저점)"
+                st.markdown(f"**{direction_label}**")
+                st.caption(fibonacci_summary_text(fib))
+                # 레벨별 표시
+                rows = []
+                for lv in ('0.236', '0.382', '0.500', '0.618', '0.786'):
+                    price = fib['levels'].get(lv)
+                    if price is None:
+                        continue
+                    diff_pct = (close.iloc[-1] - price) / price * 100 if price else 0
+                    rows.append({
+                        '레벨': f"{float(lv)*100:.1f}%",
+                        '가격': f"{price:,.0f}원",
+                        '현재가 대비': f"{diff_pct:+.2f}%",
+                    })
+                if rows:
+                    import pandas as pd
+                    st.dataframe(pd.DataFrame(rows), use_container_width=True, hide_index=True)
+
+        with col2:
+            if conf and conf.get('matched'):
+                ma200 = conf['ma200']
+                zone = conf['price_zone']
+                zone_color = {
+                    '지지권': '#22c55e',
+                    '저항권': '#ef4444',
+                    '근접': '#f59e0b',
+                    '중립': '#888',
+                }.get(zone, '#888')
+                matched_lines = "<br>".join([
+                    f"• <b>{m['level']}</b> @ {m['price']:,.0f}원 (200MA와 {m['gap_pct']:.2f}% 차)"
+                    for m in conf['matched']
+                ])
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1rem; border-radius: 12px; border: 2px solid {zone_color};'>
+                    <p style='color: {zone_color}; margin: 0; font-weight: 700; font-size: 1.05rem;'>⚡ Confluence 감지: {zone}</p>
+                    <p style='color: #ddd; margin: 0.5rem 0 0; font-size: 0.85rem;'>200MA: <b>{ma200:,.0f}원</b></p>
+                    <p style='color: #ddd; margin: 0.5rem 0 0; font-size: 0.85rem;'>{matched_lines}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            elif len(close) >= 200:
+                ma200 = float(close.rolling(200).mean().iloc[-1])
+                st.markdown(f"""
+                <div style='background: #1a1a2e; padding: 1rem; border-radius: 12px; border: 1px solid #333;'>
+                    <p style='color: #888; margin: 0;'>200MA: {ma200:,.0f}원</p>
+                    <p style='color: #888; margin: 0.5rem 0 0; font-size: 0.85rem;'>현재 confluence 없음</p>
+                </div>
+                """, unsafe_allow_html=True)
+            else:
+                st.caption("200일 데이터 부족 (200일선 계산 불가)")
+    except Exception as e:
+        # 분석 실패해도 페이지 전체는 영향 없게
+        st.caption(f"피보나치 분석 일시 실패: {str(e)[:80]}")
+
+
 def _render_quant_analysis_section(api, info: dict, code: str, stock_name: str):
     """마법공식 & 멀티팩터 & 차트 기술적 분석 섹션"""
     import html
@@ -1196,6 +1283,48 @@ def _render_stock_detail_section(api, code: str):
                 <p style='color: white; font-size: 1.8rem; font-weight: 700; margin: 0.3rem 0;'>{vol_str}</p>
             </div>
             """, unsafe_allow_html=True)
+
+        # 상장주식수 행 추가
+        try:
+            from data.market_data_cache import get_market_cap_for, format_shares, format_market_cap
+            _cap = get_market_cap_for(code) or {}
+            shares_val = int(_cap.get('shares', 0))
+            cap_val = int(_cap.get('market_cap', 0))
+        except Exception:
+            shares_val = 0
+            cap_val = 0
+        if shares_val or cap_val:
+            st.markdown("<div style='height: 0.8rem;'></div>", unsafe_allow_html=True)
+            sc1, sc2, sc3 = st.columns(3)
+            with sc1:
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1.2rem; border-radius: 16px; border: 1px solid #333;'>
+                    <p style='color: #888; margin: 0; font-size: 0.85rem;'>상장주식수</p>
+                    <p style='color: white; font-size: 1.5rem; font-weight: 700; margin: 0.3rem 0;'>{format_shares(shares_val)}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            with sc2:
+                # 정확한 시총 (pykrx 기반, 원 단위)
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1.2rem; border-radius: 16px; border: 1px solid #333;'>
+                    <p style='color: #888; margin: 0; font-size: 0.85rem;'>시가총액 (정확)</p>
+                    <p style='color: white; font-size: 1.5rem; font-weight: 700; margin: 0.3rem 0;'>{format_market_cap(cap_val)}</p>
+                </div>
+                """, unsafe_allow_html=True)
+            with sc3:
+                # 1주당 시총 비율 = 현재가 검증용 (참고)
+                price_val = info.get('price', 0)
+                ratio_str = "-"
+                if shares_val > 0 and cap_val > 0:
+                    implied_price = cap_val / shares_val
+                    diff_pct = ((price_val - implied_price) / implied_price * 100) if implied_price else 0
+                    ratio_str = f"{implied_price:,.0f}원 ({diff_pct:+.1f}%)"
+                st.markdown(f"""
+                <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1.2rem; border-radius: 16px; border: 1px solid #333;'>
+                    <p style='color: #888; margin: 0; font-size: 0.85rem;'>시총÷주식수</p>
+                    <p style='color: white; font-size: 1.1rem; font-weight: 700; margin: 0.3rem 0;'>{ratio_str}</p>
+                </div>
+                """, unsafe_allow_html=True)
     elif not realtime_displayed:
         # REST API도 실패하고 WebSocket도 없는 경우
         st.warning("종목 정보를 불러올 수 없습니다.")
@@ -1212,6 +1341,9 @@ def _render_stock_detail_section(api, code: str):
 
     # 마법공식 & 멀티팩터 분석 섹션
     _render_quant_analysis_section(api, info, code, stock_name)
+
+    # 200MA + 피보나치 confluence 분석
+    _render_fib_ma200_section(api, code, stock_name)
 
     st.markdown("---")
 
