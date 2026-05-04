@@ -1302,7 +1302,7 @@ def _display_single_stock_analysis(result: dict):
                     show_volume_profile=True,  # 매물대 표시
                     show_swing_points=True,
                     show_box_range=True,
-                    ma_periods=[5, 20]
+                    ma_periods=[5, 20, 200]
                 )
     except Exception as e:
         st.warning(f"차트 로드 실패: {e}")

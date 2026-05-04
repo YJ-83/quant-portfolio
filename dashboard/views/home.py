@@ -445,6 +445,7 @@ def _render_fib_ma200_section(api, code: str, stock_name: str):
             fibonacci_retracement_levels,
             detect_ma200_fibonacci_confluence,
             fibonacci_summary_text,
+            interpret_fib_ma200,
         )
         df = api.get_daily_price(code, period="D")
         if df is None or df.empty or len(df) < 60:
@@ -457,7 +458,104 @@ def _render_fib_ma200_section(api, code: str, stock_name: str):
         fib = fibonacci_retracement_levels(close, lookback=120)
         conf = detect_ma200_fibonacci_confluence(close, lookback=120, tolerance_pct=2.0) \
             if len(close) >= 200 else None
+        interp = interpret_fib_ma200(close, lookback=120)
 
+        # ─── 1) 핵심 결론 배너 (가장 위) ───────────────
+        if interp:
+            cur = interp['current_price']
+            ma200_val = interp.get('ma200')
+            ma200_pct = interp.get('ma200_diff_pct')
+            trend = interp['trend_label']
+            pos = interp['position_label']
+            ns = interp.get('next_support')
+            nr = interp.get('next_resistance')
+
+            # 추세 색
+            if ma200_pct is None:
+                trend_color = '#888'
+            elif ma200_pct >= 20:
+                trend_color = '#22c55e'
+            elif ma200_pct >= 5:
+                trend_color = '#86efac'
+            elif ma200_pct >= -5:
+                trend_color = '#f59e0b'
+            else:
+                trend_color = '#ef4444'
+
+            ma200_html = (
+                f"200MA <b style='color:#fff;'>{ma200_val:,.0f}원</b> · "
+                f"<span style='color:{trend_color};'>{ma200_pct:+.1f}%</span>"
+                if ma200_val else "200MA: 데이터 부족"
+            )
+            ns_html = (f"⬇ 다음 지지 <b>{ns['level']}</b> {ns['price']:,.0f}원 (-{ns['gap_pct']:.1f}%)"
+                       if ns else "⬇ 아래 지지 없음")
+            nr_html = (f"⬆ 다음 저항 <b>{nr['level']}</b> {nr['price']:,.0f}원 (+{nr['gap_pct']:.1f}%)"
+                       if nr else "⬆ 위 저항 없음")
+
+            st.markdown(f"""
+            <div style='background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%); padding: 1rem 1.2rem; border-radius: 14px; border-left: 5px solid {trend_color}; margin-bottom: 1rem;'>
+              <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem;'>
+                <div>
+                  <span style='color:#888; font-size:0.85rem;'>현재가</span>
+                  <span style='color:#fff; font-size:1.3rem; font-weight:700; margin-left:0.4rem;'>{cur:,.0f}원</span>
+                </div>
+                <div style='color:{trend_color}; font-weight:700;'>📊 {trend}</div>
+                <div style='color:#ddd; font-size:0.9rem;'>{ma200_html}</div>
+              </div>
+              <div style='margin-top:0.6rem; color:#bbb; font-size:0.9rem;'>
+                위치: <b style='color:#fff;'>{pos}</b> · {ns_html} · {nr_html}
+              </div>
+            </div>
+            """, unsafe_allow_html=True)
+
+        # ─── 2) 매매 판단 카드 (스타일별 결론) ───────────────
+        if interp and interp.get('verdicts'):
+            st.markdown("##### 🎯 매매 판단 (스타일별)")
+            badge_color_map = {
+                '🔴': '#ef4444', '🟡': '#f59e0b', '🟢': '#22c55e', '⚪': '#888',
+            }
+            cols = st.columns(len(interp['verdicts']))
+            for col, v in zip(cols, interp['verdicts']):
+                badge = v['badge']
+                badge_emoji = badge[0] if badge else '⚪'
+                bcolor = badge_color_map.get(badge_emoji, '#888')
+                # plan(분할) 정보
+                plan_html = ""
+                if v.get('plan'):
+                    plan_html = "<div style='margin-top:0.5rem; font-size:0.82rem; color:#aaa;'>" + \
+                        " · ".join([f"{p['level']}@{p['price']:,.0f}원" for p in v['plan']]) + "</div>"
+                stop_html = ""
+                if v.get('stop'):
+                    stop_html = f"<div style='margin-top:0.4rem; font-size:0.8rem; color:#fbbf24;'>🛑 손절: {v['stop']:,.0f}원</div>"
+                with col:
+                    st.markdown(f"""
+                    <div style='background:#1a1a2e; padding:0.9rem 1rem; border-radius:12px; border-top:4px solid {bcolor}; min-height:140px;'>
+                      <div style='color:#888; font-size:0.85rem;'>{v['style']}</div>
+                      <div style='color:{bcolor}; font-size:1.15rem; font-weight:700; margin:0.4rem 0;'>{v['badge']}</div>
+                      <div style='color:#ddd; font-size:0.82rem; line-height:1.4;'>{v['reason']}</div>
+                      {plan_html}
+                      {stop_html}
+                    </div>
+                    """, unsafe_allow_html=True)
+
+            # 핵심 손절선 요약
+            if interp.get('short_stop') or interp.get('mid_stop'):
+                short_s = interp.get('short_stop')
+                mid_s = interp.get('mid_stop')
+                stops = []
+                if short_s:
+                    stops.append(f"단기 <b style='color:#fbbf24;'>{short_s:,.0f}원</b>")
+                if mid_s:
+                    stops.append(f"중기(200MA) <b style='color:#ef4444;'>{mid_s:,.0f}원</b>")
+                if stops:
+                    st.markdown(
+                        f"<div style='margin-top:0.5rem; padding:0.6rem 1rem; background:#1a0f0f; border-radius:8px; border-left:4px solid #ef4444;'>"
+                        f"<span style='color:#fbbf24; font-weight:700;'>🛑 핵심 손절선:</span> "
+                        f"<span style='color:#ddd;'>{' · '.join(stops)}</span></div>",
+                        unsafe_allow_html=True
+                    )
+
+        # ─── 3) 상세: 피보 레벨 표 + Confluence 박스 ───────────────
         col1, col2 = st.columns([2, 1])
         with col1:
             if not fib:
@@ -508,11 +606,14 @@ def _render_fib_ma200_section(api, code: str, stock_name: str):
                 st.markdown(f"""
                 <div style='background: #1a1a2e; padding: 1rem; border-radius: 12px; border: 1px solid #333;'>
                     <p style='color: #888; margin: 0;'>200MA: {ma200:,.0f}원</p>
-                    <p style='color: #888; margin: 0.5rem 0 0; font-size: 0.85rem;'>현재 confluence 없음</p>
+                    <p style='color: #888; margin: 0.5rem 0 0; font-size: 0.85rem;'>강한 confluence 없음 (일반 추세 종목)</p>
                 </div>
                 """, unsafe_allow_html=True)
             else:
                 st.caption("200일 데이터 부족 (200일선 계산 불가)")
+
+        # 면책 캡션
+        st.caption("⚠️ 이 분석은 기술적 지표 기반 참고 자료입니다. 투자 추천이 아닙니다.")
     except Exception as e:
         # 분석 실패해도 페이지 전체는 영향 없게
         st.caption(f"피보나치 분석 일시 실패: {str(e)[:80]}")

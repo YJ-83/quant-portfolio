@@ -65,8 +65,8 @@ from data.market_data_cache import (
     get_sector_cached,
     get_detailed_sector_cached,
 )
-# 피보나치 + 200MA confluence
-from utils.fibonacci import detect_ma200_fibonacci_confluence
+# 피보나치 + 200MA confluence + 매매 판단
+from utils.fibonacci import detect_ma200_fibonacci_confluence, interpret_fib_ma200
 
 # 스크리너 로직 모듈 import (screener.py → screener_logic.py로 이전됨)
 from dashboard.views.screener_logic import (
@@ -321,7 +321,7 @@ def _render_stock_chart(api, code: str, name: str, key_prefix: str):
             show_volume_profile=show_volume_profile,
             show_swing_points=show_swing_points,
             show_box_range=show_box_range,
-            ma_periods=[5, 20, 60, 120]
+            ma_periods=[5, 20, 60, 120, 200]
         )
     except Exception as e:
         import traceback
@@ -342,7 +342,7 @@ def _render_stock_chart(api, code: str, name: str, key_prefix: str):
                 show_volume_profile=False,
                 show_swing_points=False,
                 show_box_range=False,
-                ma_periods=[5, 20, 60, 120]
+                ma_periods=[5, 20, 60, 120, 200]
             )
         except Exception as e2:
             st.error(f"기본 차트도 표시할 수 없습니다: {e2}")
@@ -520,25 +520,48 @@ def _render_card_addons(api, code: str):
     with c3:
         st.markdown(f"📊 **상장주식수:** {format_shares(shares_val) if shares_val else '-'}")
 
-    # 200MA + 피보나치 confluence (옵션)
+    # 200MA + 피보나치 confluence + 매매 판단 한 줄 결론
     if api is not None:
         try:
             df = api.get_daily_price(code, period="D")
-            if df is not None and not df.empty and len(df) >= 200:
-                conf = detect_ma200_fibonacci_confluence(
-                    df['close'], lookback=120, tolerance_pct=2.0
-                )
-                if conf and conf.get('matched'):
-                    best = conf['matched'][0]
-                    zone = conf.get('price_zone', '중립')
-                    zone_emoji = {
-                        '지지권': '🟢', '저항권': '🔴',
-                        '근접': '🟡', '중립': '⚪',
-                    }.get(zone, '⚪')
-                    st.caption(
-                        f"{zone_emoji} **200MA·피보 {best['level']} confluence** "
-                        f"({zone}) · 200MA {conf['ma200']:,.0f}원 · 레벨가 {best['price']:,.0f}원"
-                    )
+            if df is not None and not df.empty and len(df) >= 60:
+                close_s = df['close']
+                # confluence
+                if len(close_s) >= 200:
+                    conf = detect_ma200_fibonacci_confluence(close_s, lookback=120, tolerance_pct=2.0)
+                    if conf and conf.get('matched'):
+                        best = conf['matched'][0]
+                        zone = conf.get('price_zone', '중립')
+                        zone_emoji = {'지지권':'🟢','저항권':'🔴','근접':'🟡','중립':'⚪'}.get(zone, '⚪')
+                        st.caption(
+                            f"{zone_emoji} **200MA·피보 {best['level']} confluence** "
+                            f"({zone}) · 200MA {conf['ma200']:,.0f}원 · 레벨가 {best['price']:,.0f}원"
+                        )
+                # 매매 판단 (분할 매수 / 보유중 두 가지 결론만 압축 표시)
+                interp = interpret_fib_ma200(close_s, lookback=120)
+                if interp:
+                    verdicts = {v['style']: v for v in interp.get('verdicts', [])}
+                    split = verdicts.get('📦 분할매수 (중장기)')
+                    hold = verdicts.get('🤝 보유중')
+                    short = verdicts.get('⚡ 단기 트레이딩')
+                    badge_color = {'🔴':'#ef4444','🟡':'#f59e0b','🟢':'#22c55e','⚪':'#888'}
+                    pieces = []
+                    for v in (split, hold, short):
+                        if v:
+                            emoji = v['badge'][0]
+                            color = badge_color.get(emoji, '#888')
+                            pieces.append(
+                                f"<span style='background:#0d1421; padding:3px 8px; border-radius:6px; "
+                                f"border-left:3px solid {color}; font-size:0.85rem;'>"
+                                f"<b style='color:{color};'>{v['badge']}</b> "
+                                f"<span style='color:#aaa;'>{v['style'].split(' ',1)[1] if ' ' in v['style'] else v['style']}</span></span>"
+                            )
+                    if pieces:
+                        st.markdown(
+                            "<div style='display:flex; gap:0.4rem; flex-wrap:wrap; margin:0.4rem 0;'>"
+                            + "".join(pieces) + "</div>",
+                            unsafe_allow_html=True
+                        )
         except Exception:
             pass
 

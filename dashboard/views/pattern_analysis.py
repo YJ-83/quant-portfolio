@@ -16,7 +16,7 @@ from data.market_data_cache import (
     format_market_cap,
     format_shares,
 )
-from utils.fibonacci import detect_ma200_fibonacci_confluence
+from utils.fibonacci import detect_ma200_fibonacci_confluence, interpret_fib_ma200
 
 # 한국 시간대
 KST = timezone(timedelta(hours=9))
@@ -726,28 +726,51 @@ def _display_stock_card(result: Dict, is_mobile: bool):
     _cap_str = format_market_cap(_cap_val) if _cap_val else '-'
     _shares_str = format_shares(_shares_val) if _shares_val else '-'
 
-    # 200MA + 피보나치 confluence (chart_data가 있고 200일 이상이면)
+    # 200MA + 피보나치 confluence + 매매 판단 한 줄 결론
     _conf_html = ""
+    _verdict_html = ""
     try:
         cd = result.get('chart_data') or {}
         closes = cd.get('close')
-        if closes is not None and len(closes) >= 200:
+        if closes is not None and len(closes) >= 60:
             close_series = pd.Series(closes)
-            conf = detect_ma200_fibonacci_confluence(close_series, lookback=120, tolerance_pct=2.0)
-            if conf and conf.get('matched'):
-                best = conf['matched'][0]
-                zone = conf.get('price_zone', '중립')
-                zone_color = {
-                    '지지권': '#00ff00', '저항권': '#ff4444',
-                    '근접': '#ffbb33', '중립': '#888',
-                }.get(zone, '#888')
-                _conf_html = (
-                    f"<div style='margin-top: 8px; padding: 6px 10px; background: #0d1421; "
-                    f"border-left: 3px solid {zone_color}; border-radius: 4px;'>"
-                    f"<span style='color: {zone_color}; font-weight: 700;'>⚡ 200MA·피보 {best['level']} confluence</span> "
-                    f"<span style='color: #aaa;'>({zone}) · 200MA {conf['ma200']:,.0f}원 · "
-                    f"레벨가 {best['price']:,.0f}원</span></div>"
-                )
+            # confluence
+            if len(close_series) >= 200:
+                conf = detect_ma200_fibonacci_confluence(close_series, lookback=120, tolerance_pct=2.0)
+                if conf and conf.get('matched'):
+                    best = conf['matched'][0]
+                    zone = conf.get('price_zone', '중립')
+                    zone_color = {'지지권':'#00ff00','저항권':'#ff4444','근접':'#ffbb33','중립':'#888'}.get(zone, '#888')
+                    _conf_html = (
+                        f"<div style='margin-top: 8px; padding: 6px 10px; background: #0d1421; "
+                        f"border-left: 3px solid {zone_color}; border-radius: 4px;'>"
+                        f"<span style='color: {zone_color}; font-weight: 700;'>⚡ 200MA·피보 {best['level']} confluence</span> "
+                        f"<span style='color: #aaa;'>({zone}) · 200MA {conf['ma200']:,.0f}원 · "
+                        f"레벨가 {best['price']:,.0f}원</span></div>"
+                    )
+            # 매매 판단 (3개 스타일 압축 배지)
+            interp = interpret_fib_ma200(close_series, lookback=120)
+            if interp:
+                vmap = {v['style']: v for v in interp.get('verdicts', [])}
+                bcolor = {'🔴':'#ef4444','🟡':'#f59e0b','🟢':'#22c55e','⚪':'#888'}
+                pieces = []
+                for style_key in ('📦 분할매수 (중장기)', '🤝 보유중', '⚡ 단기 트레이딩'):
+                    v = vmap.get(style_key)
+                    if not v:
+                        continue
+                    emoji = v['badge'][0]
+                    c = bcolor.get(emoji, '#888')
+                    label = v['style'].split(' ', 1)[1] if ' ' in v['style'] else v['style']
+                    pieces.append(
+                        f"<span style='background:#0d1421; padding:3px 8px; border-radius:6px; "
+                        f"border-left:3px solid {c}; font-size:0.8rem; color:#aaa;'>"
+                        f"<b style='color:{c};'>{v['badge']}</b> {label}</span>"
+                    )
+                if pieces:
+                    _verdict_html = (
+                        "<div style='display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;'>"
+                        + "".join(pieces) + "</div>"
+                    )
     except Exception:
         pass
 
@@ -792,6 +815,7 @@ def _display_stock_card(result: Dict, is_mobile: bool):
             </div>
         </div>
         {_conf_html}
+        {_verdict_html}
         <div style='margin-top: 10px; padding-top: 10px; border-top: 1px solid #333;'>
             <span style='color: #888; font-size: 0.85rem;'>분석 근거:</span>
             <p style='color: #aaa; font-size: 0.85rem; margin: 5px 0;'>{reasons_html}</p>
