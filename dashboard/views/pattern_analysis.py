@@ -841,25 +841,45 @@ def _draw_trendline_chart(result: Dict, chart_data: Dict, is_mobile: bool):
         decreasing_fillcolor='#0066ff'
     ))
 
-    # 2. 이동평균선
-    ma20 = chart_data.get('ma20', 0)
-    ma60 = chart_data.get('ma60', 0)
+    # 2. 이동평균선 (MA20 + MA50 + MA200 — 장기추세 기준선 포함)
+    def _rolling_mean(arr, window):
+        """간단한 SMA 시리즈 (None 패딩 포함)"""
+        out = []
+        for i in range(len(arr)):
+            if i + 1 >= window:
+                out.append(float(np.mean(arr[i + 1 - window:i + 1])))
+            else:
+                out.append(None)
+        return out
 
-    # MA20 라인 (전체 기간 계산)
-    ma20_values = []
-    for i in range(len(closes)):
-        if i >= 19:
-            ma20_values.append(np.mean(closes[max(0, i-19):i+1]))
-        else:
-            ma20_values.append(None)
+    closes_arr = list(closes)
 
+    # MA20 (단기)
     fig.add_trace(go.Scatter(
         x=dates,
-        y=ma20_values,
+        y=_rolling_mean(closes_arr, 20),
         mode='lines',
         name='MA20',
         line=dict(color='#ffbb33', width=1.5, dash='dot')
     ))
+    # MA50 (장기 골든·데드 크로스 기준)
+    if len(closes_arr) >= 50:
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=_rolling_mean(closes_arr, 50),
+            mode='lines',
+            name='MA50',
+            line=dict(color='#5856D6', width=1.5)
+        ))
+    # MA200 (장기추세 기준 — 두껍게)
+    if len(closes_arr) >= 200:
+        fig.add_trace(go.Scatter(
+            x=dates,
+            y=_rolling_mean(closes_arr, 200),
+            mode='lines',
+            name='MA200',
+            line=dict(color='#DC143C', width=2.5)
+        ))
 
     # 3. 상승 추세선 계산 (저점 연결)
     try:

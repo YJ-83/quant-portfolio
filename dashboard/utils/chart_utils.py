@@ -39,7 +39,7 @@ def get_chart_config(mobile: bool = None) -> dict:
             'height': 300,
             'show_volume_profile': False,
             'show_swing_points': False,  # 모바일에서 마커 제거
-            'ma_periods': [5, 20],  # 이평선 2개만
+            'ma_periods': [5, 20, 200],  # 모바일도 장기추세 200일선 포함
             'margin': dict(l=30, r=30, t=40, b=30),
             'legend_show': False,
             'font_size': 10
@@ -49,7 +49,7 @@ def get_chart_config(mobile: bool = None) -> dict:
             'height': 500,
             'show_volume_profile': True,
             'show_swing_points': True,
-            'ma_periods': [5, 20, 60, 120],
+            'ma_periods': [5, 20, 60, 120, 200],  # 200일선(장기추세) 항상 포함
             'margin': dict(l=50, r=50, t=80, b=50),
             'legend_show': True,
             'font_size': 12
@@ -167,16 +167,18 @@ def render_candlestick_chart(
     # 데이터 정렬
     data = data.sort_index().copy()
 
-    # 이동평균선 기본값
+    # 이동평균선 기본값 (200일선 항상 포함 — 장기추세 기준선)
     if ma_periods is None:
-        ma_periods = [5, 20, 60, 120]
+        ma_periods = [5, 20, 60, 120, 200]
 
     # 이동평균선 계산
     ma_colors = {
         5: '#FF9500',    # 주황
         20: '#34C759',   # 녹색
+        50: '#FFCC00',   # 노랑 (장기 골든·데드 크로스 기준)
         60: '#5856D6',   # 보라
-        120: '#FF2D55'   # 분홍
+        120: '#FF2D55',  # 분홍
+        200: '#DC143C',  # 진홍 (200일선, 가장 두껍게)
     }
 
     for period in ma_periods:
@@ -228,19 +230,21 @@ def render_candlestick_chart(
         row=1, col=1
     )
 
-    # 이동평균선
+    # 이동평균선 (200일선은 두께·불투명도를 강하게 — 장기추세 기준선)
     if show_ma:
         for period in ma_periods:
             col_name = f'MA{period}'
             if col_name in data.columns:
                 color = ma_colors.get(period, '#888888')
+                line_width = 2.5 if period == 200 else 1
+                opacity = 1.0 if period == 200 else 0.8
                 fig.add_trace(
                     go.Scatter(
                         x=data.index,
                         y=data[col_name],
                         name=col_name,
-                        line=dict(color=color, width=1),
-                        opacity=0.8
+                        line=dict(color=color, width=line_width),
+                        opacity=opacity
                     ),
                     row=1, col=1
                 )

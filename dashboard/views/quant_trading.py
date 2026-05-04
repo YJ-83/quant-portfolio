@@ -282,24 +282,34 @@ def _render_account_status(api):
     # 보유 종목 테이블
     st.subheader("보유 종목")
 
-    # 시총·상장주식수 일괄 조회
+    # 시총·상장주식수 + 섹터 일괄 조회
     try:
-        from data.market_data_cache import get_market_cap_dict, format_market_cap, format_shares
+        from data.market_data_cache import (
+            get_market_cap_dict, format_market_cap, format_shares,
+            get_sector_cached,
+        )
         _cap_table = get_market_cap_dict("ALL")
     except Exception:
         _cap_table = {}
         format_market_cap = lambda x: '-'
         format_shares = lambda x: '-'
+        get_sector_cached = lambda x: '기타'
 
     if holdings and len(holdings) > 0:
         df_holdings = []
         for h in holdings:
             qty = int(h.get("hldg_qty", 0))
             if qty > 0:
-                _cap_info = _cap_table.get(str(h.get("pdno", "")), {})
+                code_str = str(h.get("pdno", ""))
+                _cap_info = _cap_table.get(code_str, {})
+                try:
+                    _sector_str = get_sector_cached(code_str)
+                except Exception:
+                    _sector_str = "기타"
                 df_holdings.append({
                     "종목코드": h.get("pdno", ""),
                     "종목명": h.get("prdt_name", ""),
+                    "섹터": _sector_str,
                     "시가총액": format_market_cap(int(_cap_info.get("market_cap", 0))),
                     "상장주식수": format_shares(int(_cap_info.get("shares", 0))),
                     "보유수량": qty,

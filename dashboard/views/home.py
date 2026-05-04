@@ -1284,15 +1284,23 @@ def _render_stock_detail_section(api, code: str):
             </div>
             """, unsafe_allow_html=True)
 
-        # 상장주식수 행 추가
+        # 상장주식수 + 섹터 행 추가
         try:
-            from data.market_data_cache import get_market_cap_for, format_shares, format_market_cap
+            from data.market_data_cache import (
+                get_market_cap_for, format_shares, format_market_cap,
+                get_detailed_sector_cached, get_sector_cached,
+            )
             _cap = get_market_cap_for(code) or {}
             shares_val = int(_cap.get('shares', 0))
             cap_val = int(_cap.get('market_cap', 0))
+            _sec_info = get_detailed_sector_cached(code) or {}
+            sector_text = _sec_info.get('sub_sector') or _sec_info.get('sector') or get_sector_cached(code)
+            industry_text = _sec_info.get('industry') or ''
         except Exception:
             shares_val = 0
             cap_val = 0
+            sector_text = '기타'
+            industry_text = ''
         if shares_val or cap_val:
             st.markdown("<div style='height: 0.8rem;'></div>", unsafe_allow_html=True)
             sc1, sc2, sc3 = st.columns(3)
@@ -1323,6 +1331,17 @@ def _render_stock_detail_section(api, code: str):
                 <div style='background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 1.2rem; border-radius: 16px; border: 1px solid #333;'>
                     <p style='color: #888; margin: 0; font-size: 0.85rem;'>시총÷주식수</p>
                     <p style='color: white; font-size: 1.1rem; font-weight: 700; margin: 0.3rem 0;'>{ratio_str}</p>
+                </div>
+                """, unsafe_allow_html=True)
+
+            # 섹터 / 주요 분야 한 줄 카드 (네이버 금융 출처)
+            if sector_text and sector_text != '기타':
+                detail_line = f" <span style='color: #888; font-size: 0.9rem;'>· {industry_text}</span>" if industry_text and industry_text != sector_text else ""
+                st.markdown(f"""
+                <div style='margin-top: 0.8rem; background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); padding: 0.9rem 1.2rem; border-radius: 12px; border-left: 4px solid #5856D6;'>
+                    <span style='color: #888; font-size: 0.8rem;'>🏷️ 섹터 / 주요 분야</span>
+                    <span style='color: white; font-size: 1.05rem; font-weight: 600; margin-left: 0.6rem;'>{sector_text}</span>
+                    {detail_line}
                 </div>
                 """, unsafe_allow_html=True)
     elif not realtime_displayed:

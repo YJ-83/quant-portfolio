@@ -76,3 +76,44 @@ def format_shares(shares: int) -> str:
     if shares >= 10_000:
         return f"{shares / 10_000:,.0f}만주"
     return f"{shares:,}주"
+
+
+# ─────────────── 섹터 / 주요 분야 캐시 ───────────────
+@functools.lru_cache(maxsize=2048)
+def get_sector_cached(code: str) -> str:
+    """
+    네이버 + 정적 매핑 기반 섹터 조회 결과를 프로세스 단위로 캐시.
+    종목당 1회만 네이버 호출, 이후 메모리 lookup.
+    """
+    if not code:
+        return "기타"
+    try:
+        from data.stock_list import get_sector
+        return get_sector(str(code), use_naver=True) or "기타"
+    except Exception:
+        return "기타"
+
+
+@functools.lru_cache(maxsize=2048)
+def get_detailed_sector_cached(code: str) -> Dict[str, Optional[str]]:
+    """
+    네이버 금융에서 상세 섹터 정보(업종/세부업종/산업군) 조회.
+
+    Returns:
+        {'sector': str|None, 'sub_sector': str|None, 'industry': str|None, 'source': str}
+    """
+    if not code:
+        return {"sector": None, "sub_sector": None, "industry": None, "source": "fallback"}
+    try:
+        from data.stock_list import get_detailed_sector_from_naver
+        result = get_detailed_sector_from_naver(str(code))
+        if isinstance(result, dict):
+            return {
+                "sector": result.get("sector"),
+                "sub_sector": result.get("sub_sector"),
+                "industry": result.get("industry"),
+                "source": result.get("source", "naver"),
+            }
+    except Exception:
+        pass
+    return {"sector": None, "sub_sector": None, "industry": None, "source": "fallback"}

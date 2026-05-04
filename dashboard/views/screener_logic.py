@@ -19,11 +19,12 @@ sys.path.insert(0, PROJECT_ROOT)
 # 종목 리스트 import
 from data.stock_list import get_kospi_stocks, get_kosdaq_stocks
 
-# 시총·상장주식수 일괄 캐시
+# 시총·상장주식수 일괄 캐시 + 섹터 (네이버 금융)
 from data.market_data_cache import (
     get_market_cap_dict,
     format_market_cap,
     format_shares,
+    get_sector_cached,
 )
 
 # 피보나치 되돌림 + 200MA confluence
@@ -1108,9 +1109,16 @@ def _run_advanced_scan(api, market: str, theme_filter: list, sector_filter: str 
     try:
         cap_table = get_market_cap_dict("ALL")
         for r in results:
-            cap_info = cap_table.get(str(r.get('code', '')), {})
+            code_str = str(r.get('code', ''))
+            cap_info = cap_table.get(code_str, {})
             r['market_cap'] = int(cap_info.get('market_cap', 0))
             r['shares'] = int(cap_info.get('shares', 0))
+            # 섹터(네이버) — 캐시되어 있으면 즉시, 아니면 첫 조회 시 외부 호출
+            try:
+                if not r.get('sector') or r.get('sector') == '기타':
+                    r['sector'] = get_sector_cached(code_str)
+            except Exception:
+                pass
     except Exception:
         pass
 
@@ -2222,8 +2230,10 @@ def _render_screener_results():
             df['시가총액'] = df['market_cap'].apply(format_market_cap)
         if 'shares' in df.columns:
             df['상장주식수'] = df['shares'].apply(format_shares)
+        if 'sector' in df.columns:
+            df['섹터'] = df['sector']
 
-        display_cols = ['code', 'name', '등락률', 'RSI', '거래량비', '시가총액', '상장주식수', 'signal']
+        display_cols = ['code', 'name', '섹터', '등락률', 'RSI', '거래량비', '시가총액', '상장주식수', 'signal']
         display_cols = [c for c in display_cols if c in df.columns]
 
         st.dataframe(df[display_cols], use_container_width=True, hide_index=True)
@@ -2605,10 +2615,15 @@ def _run_screener(api, conditions: dict, market: str, max_results: int) -> list:
             # 조건 충족 시 결과에 추가
             if match:
                 cap_info = _market_cap_table.get(str(code), {}) if _market_cap_table else {}
+                try:
+                    sector_label = get_sector_cached(str(code))
+                except Exception:
+                    sector_label = "기타"
                 results.append({
                     "code": code,
                     "name": name,
                     "market": mkt,
+                    "sector": sector_label,
                     "price": int(current_price),
                     "change_rate": round(change_rate, 2),
                     "rsi": round(rsi, 1),

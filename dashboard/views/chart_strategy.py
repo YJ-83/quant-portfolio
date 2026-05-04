@@ -62,6 +62,8 @@ from data.market_data_cache import (
     get_market_cap_for,
     format_market_cap,
     format_shares,
+    get_sector_cached,
+    get_detailed_sector_cached,
 )
 # 피보나치 + 200MA confluence
 from utils.fibonacci import detect_ma200_fibonacci_confluence
@@ -486,6 +488,7 @@ def _render_harmonic_stock_finder(api):
 
 def _render_card_addons(api, code: str):
     """모든 차트전략 카드에 공통으로 붙는 부가정보:
+    - 섹터 / 주요분야 (네이버 금융 + 정적 매핑)
     - 시가총액 / 상장주식수 (pykrx 일괄 캐시)
     - 200MA + 피보나치 confluence 요약 (있을 때만)
     """
@@ -496,12 +499,26 @@ def _render_card_addons(api, code: str):
     except Exception:
         cap_val = shares_val = 0
 
-    if cap_val or shares_val:
-        c1, c2 = st.columns(2)
-        with c1:
-            st.markdown(f"💰 **시가총액:** {format_market_cap(cap_val)}")
-        with c2:
-            st.markdown(f"📊 **상장주식수:** {format_shares(shares_val)}")
+    # 섹터 / 주요분야
+    try:
+        sector_info = get_detailed_sector_cached(code) or {}
+        sector_label = sector_info.get('sub_sector') or sector_info.get('sector') or get_sector_cached(code)
+        industry_label = sector_info.get('industry')
+    except Exception:
+        sector_label = '기타'
+        industry_label = None
+
+    # 한 줄에 섹터 / 시총 / 상장주식수
+    c1, c2, c3 = st.columns(3)
+    with c1:
+        if industry_label and industry_label != sector_label:
+            st.markdown(f"🏷️ **섹터:** {sector_label} <span style='color:#888;'>· {industry_label}</span>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"🏷️ **섹터:** {sector_label}")
+    with c2:
+        st.markdown(f"💰 **시가총액:** {format_market_cap(cap_val) if cap_val else '-'}")
+    with c3:
+        st.markdown(f"📊 **상장주식수:** {format_shares(shares_val) if shares_val else '-'}")
 
     # 200MA + 피보나치 confluence (옵션)
     if api is not None:

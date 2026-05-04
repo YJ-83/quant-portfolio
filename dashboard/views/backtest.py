@@ -1591,25 +1591,35 @@ def _render_simulation_analysis():
     st.markdown("---")
     st.markdown("### 📋 전체 모의투자 내역")
 
-    # 시총·상장주식수 일괄 조회 (단 1회 pykrx 호출)
+    # 시총·상장주식수 + 섹터 일괄 조회
     try:
-        from data.market_data_cache import get_market_cap_dict, format_market_cap, format_shares
+        from data.market_data_cache import (
+            get_market_cap_dict, format_market_cap, format_shares,
+            get_sector_cached,
+        )
         cap_table = get_market_cap_dict("ALL")
     except Exception:
         cap_table = {}
         format_market_cap = lambda x: '-'
         format_shares = lambda x: '-'
+        get_sector_cached = lambda x: '기타'
 
     # 데이터프레임 생성
     table_data = []
     for sim in history:
         stock = sim.get('stock', {})
         status = "진행중" if sim.get('status') == 'pending' else "완료"
-        cap_info = cap_table.get(str(stock.get('code', '')), {})
+        code_str = str(stock.get('code', ''))
+        cap_info = cap_table.get(code_str, {})
+        try:
+            sector_str = get_sector_cached(code_str)
+        except Exception:
+            sector_str = '기타'
 
         table_data.append({
             '종목명': stock.get('name', 'N/A'),
             '종목코드': stock.get('code', ''),
+            '섹터': sector_str,
             '시가총액': format_market_cap(int(cap_info.get('market_cap', 0))),
             '상장주식수': format_shares(int(cap_info.get('shares', 0))),
             '매입가': stock.get('buy_price', 0),
