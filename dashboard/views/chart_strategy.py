@@ -57,6 +57,15 @@ from dashboard.views.home import (
     _get_chart_technical_analysis,
 )
 
+# 시총·상장주식수 일괄 캐시
+from data.market_data_cache import (
+    get_market_cap_for,
+    format_market_cap,
+    format_shares,
+)
+# 피보나치 + 200MA confluence
+from utils.fibonacci import detect_ma200_fibonacci_confluence
+
 # 스크리너 로직 모듈 import (screener.py → screener_logic.py로 이전됨)
 from dashboard.views.screener_logic import (
     # 개별 종목 분석 표시 함수 (스윙/태쏘/다이버전스)
@@ -475,6 +484,48 @@ def _render_harmonic_stock_finder(api):
                 st.info("조건에 맞는 종목이 없습니다.")
 
 
+def _render_card_addons(api, code: str):
+    """모든 차트전략 카드에 공통으로 붙는 부가정보:
+    - 시가총액 / 상장주식수 (pykrx 일괄 캐시)
+    - 200MA + 피보나치 confluence 요약 (있을 때만)
+    """
+    try:
+        cap_info = get_market_cap_for(code) or {}
+        cap_val = int(cap_info.get('market_cap', 0))
+        shares_val = int(cap_info.get('shares', 0))
+    except Exception:
+        cap_val = shares_val = 0
+
+    if cap_val or shares_val:
+        c1, c2 = st.columns(2)
+        with c1:
+            st.markdown(f"💰 **시가총액:** {format_market_cap(cap_val)}")
+        with c2:
+            st.markdown(f"📊 **상장주식수:** {format_shares(shares_val)}")
+
+    # 200MA + 피보나치 confluence (옵션)
+    if api is not None:
+        try:
+            df = api.get_daily_price(code, period="D")
+            if df is not None and not df.empty and len(df) >= 200:
+                conf = detect_ma200_fibonacci_confluence(
+                    df['close'], lookback=120, tolerance_pct=2.0
+                )
+                if conf and conf.get('matched'):
+                    best = conf['matched'][0]
+                    zone = conf.get('price_zone', '중립')
+                    zone_emoji = {
+                        '지지권': '🟢', '저항권': '🔴',
+                        '근접': '🟡', '중립': '⚪',
+                    }.get(zone, '⚪')
+                    st.caption(
+                        f"{zone_emoji} **200MA·피보 {best['level']} confluence** "
+                        f"({zone}) · 200MA {conf['ma200']:,.0f}원 · 레벨가 {best['price']:,.0f}원"
+                    )
+        except Exception:
+            pass
+
+
 def _render_stock_card(stock: dict, api=None, key_prefix: str = "stock"):
     """종목 카드 렌더링 (진입가, 손절가, 목표가 포함 + 차트 보기)"""
     code = stock.get('code', '')
@@ -525,6 +576,9 @@ def _render_stock_card(stock: dict, api=None, key_prefix: str = "stock"):
             st.caption(f"📊 R:R = 1:{rr_ratio:.1f} | {reason}")
         else:
             st.caption(f"{reason}")
+
+        # 시총/상장주식수 + 200MA·피보 confluence
+        _render_card_addons(api, code)
 
         # 차트 보기 버튼 (expander) - 세션 상태로 열림 유지
         if api is not None:
@@ -603,6 +657,9 @@ def _render_head_shoulders_card(stock: dict, api=None, key_prefix: str = "hs"):
         else:
             st.caption(f"{reason}")
 
+        # 시총/상장주식수 + 200MA·피보 confluence
+        _render_card_addons(api, code)
+
         # 차트 보기 버튼 (expander) - 세션 상태로 열림 유지
         if api is not None:
             expander_key = f"{key_prefix}_expander_{code}"
@@ -665,6 +722,9 @@ def _render_harmonic_stock_card(stock: dict, api=None, key_prefix: str = "harmon
                 reward = abs(target_a - entry_price)
                 rr_ratio = reward / risk if risk > 0 else 0
                 st.caption(f"📊 R:R = 1:{rr_ratio:.1f} | D포인트: {d_point:,.0f}원 | 목표C: {target_c:,.0f}원")
+
+        # 시총/상장주식수 + 200MA·피보 confluence
+        _render_card_addons(api, code)
 
         # 차트 보기 버튼 (expander) - 세션 상태로 열림 유지
         if api is not None:
