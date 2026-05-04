@@ -4128,20 +4128,22 @@ def _display_tasso_chart(code: str, name: str, box: dict, breakout: dict, new_hi
             row=1, col=1
         )
 
-        # 이동평균선
-        if len(df) >= 20:
-            ma20 = df['close'].rolling(20).mean()
-            fig.add_trace(
-                go.Scatter(x=x_data, y=ma20, name='MA20', line=dict(color='orange', width=1)),
-                row=1, col=1
-            )
-
+        # 이동평균선 (5/20/60/120/200 — 200일선은 진홍·두껍게)
         if len(df) >= 5:
             ma5 = df['close'].rolling(5).mean()
-            fig.add_trace(
-                go.Scatter(x=x_data, y=ma5, name='MA5', line=dict(color='purple', width=1)),
-                row=1, col=1
-            )
+            fig.add_trace(go.Scatter(x=x_data, y=ma5, name='MA5', line=dict(color='purple', width=1)), row=1, col=1)
+        if len(df) >= 20:
+            ma20 = df['close'].rolling(20).mean()
+            fig.add_trace(go.Scatter(x=x_data, y=ma20, name='MA20', line=dict(color='orange', width=1)), row=1, col=1)
+        if len(df) >= 60:
+            ma60 = df['close'].rolling(60).mean()
+            fig.add_trace(go.Scatter(x=x_data, y=ma60, name='MA60', line=dict(color='#5856D6', width=1)), row=1, col=1)
+        if len(df) >= 120:
+            ma120 = df['close'].rolling(120).mean()
+            fig.add_trace(go.Scatter(x=x_data, y=ma120, name='MA120', line=dict(color='#FF2D55', width=1)), row=1, col=1)
+        if len(df) >= 200:
+            ma200 = df['close'].rolling(200).mean()
+            fig.add_trace(go.Scatter(x=x_data, y=ma200, name='MA200', line=dict(color='#DC143C', width=2.5)), row=1, col=1)
 
         # 스윙 포인트 (저점/고점 마커)
         if len(df) >= 10:
@@ -4725,20 +4727,22 @@ def _display_swing_chart(code: str, name: str, pattern: dict, pattern_type: str,
             row=1, col=1
         )
 
-        # 이동평균선
-        if len(df) >= 20:
-            ma20 = df['close'].rolling(20).mean()
-            fig.add_trace(
-                go.Scatter(x=x_data, y=ma20, name='MA20', line=dict(color='orange', width=1)),
-                row=1, col=1
-            )
-
+        # 이동평균선 (5/20/60/120/200 — 200일선은 진홍·두껍게)
         if len(df) >= 5:
             ma5 = df['close'].rolling(5).mean()
-            fig.add_trace(
-                go.Scatter(x=x_data, y=ma5, name='MA5', line=dict(color='purple', width=1)),
-                row=1, col=1
-            )
+            fig.add_trace(go.Scatter(x=x_data, y=ma5, name='MA5', line=dict(color='purple', width=1)), row=1, col=1)
+        if len(df) >= 20:
+            ma20 = df['close'].rolling(20).mean()
+            fig.add_trace(go.Scatter(x=x_data, y=ma20, name='MA20', line=dict(color='orange', width=1)), row=1, col=1)
+        if len(df) >= 60:
+            ma60 = df['close'].rolling(60).mean()
+            fig.add_trace(go.Scatter(x=x_data, y=ma60, name='MA60', line=dict(color='#5856D6', width=1)), row=1, col=1)
+        if len(df) >= 120:
+            ma120 = df['close'].rolling(120).mean()
+            fig.add_trace(go.Scatter(x=x_data, y=ma120, name='MA120', line=dict(color='#FF2D55', width=1)), row=1, col=1)
+        if len(df) >= 200:
+            ma200 = df['close'].rolling(200).mean()
+            fig.add_trace(go.Scatter(x=x_data, y=ma200, name='MA200', line=dict(color='#DC143C', width=2.5)), row=1, col=1)
 
         # 스윙 포인트 (저점/고점 마커)
         if len(df) >= 10:

@@ -448,9 +448,9 @@ def _render_signal_cards(signals: list, signal_type: str, api):
         </div>
         """, unsafe_allow_html=True)
 
-        # 차트 데이터 로드
+        # 차트 데이터 로드 — MA200·피보나치 분석용으로 최소 1년 (420일)
         end_date = datetime.now().strftime("%Y%m%d")
-        start_date = (datetime.now() - timedelta(days=180)).strftime("%Y%m%d")
+        start_date = (datetime.now() - timedelta(days=420)).strftime("%Y%m%d")
 
         with st.spinner("차트 로딩 중..."):
             chart_data = api.get_daily_price(code, start_date, end_date)
@@ -477,14 +477,20 @@ def _render_signal_cards(signals: list, signal_type: str, api):
                 whiskerwidth=0.8
             ), row=1, col=1)
 
-            # 이동평균선 (5, 20, 60, 120일)
-            for period, color, label in [(5, '#FF6B6B', '5일'), (20, '#FFE66D', '20일'), (60, '#95E1D3', '60일'), (120, '#E91E63', '120일')]:
+            # 이동평균선 (5, 20, 60, 120, 200일 — 200일선 강조)
+            for period, color, label, w in [
+                (5, '#FF6B6B', '5일', 1.5),
+                (20, '#FFE66D', '20일', 1.5),
+                (60, '#95E1D3', '60일', 1.5),
+                (120, '#E91E63', '120일', 1.5),
+                (200, '#DC143C', '200일', 2.5),
+            ]:
                 if len(chart_data) >= period:
                     ma = chart_data['close'].rolling(window=period).mean()
                     fig.add_trace(go.Scatter(
                         x=chart_data['date'], y=ma,
                         mode='lines', name=label,
-                        line=dict(color=color, width=1.5)
+                        line=dict(color=color, width=w)
                     ), row=1, col=1)
 
             # 스윙 포인트 (저점/고점 마커)
@@ -616,6 +622,80 @@ def _render_signal_cards(signals: list, signal_type: str, api):
             )
 
             st.plotly_chart(fig, use_container_width=True, key=f"ct_signal_chart_{signal_type}_{code}")
+
+            # ========== 200MA + 피보나치 분석 패널 (차트 직하단) ==========
+            try:
+                from utils.fibonacci import (
+                    detect_ma200_fibonacci_confluence,
+                    interpret_fib_ma200,
+                )
+                close_fib = chart_data['close'] if 'close' in chart_data.columns else None
+                if close_fib is not None and len(close_fib) >= 60:
+                    interp = interpret_fib_ma200(close_fib, lookback=120)
+                    if interp:
+                        cur = interp['current_price']
+                        ma200_v = interp.get('ma200')
+                        ma200_pct = interp.get('ma200_diff_pct')
+                        pos = interp.get('position_label', '?')
+                        ns = interp.get('next_support')
+                        nr = interp.get('next_resistance')
+                        trend = interp.get('trend_label', '?')
+                        if ma200_pct is None:
+                            tcolor = '#888'
+                        elif ma200_pct >= 20: tcolor = '#22c55e'
+                        elif ma200_pct >= 5: tcolor = '#86efac'
+                        elif ma200_pct >= -5: tcolor = '#f59e0b'
+                        else: tcolor = '#ef4444'
+                        ma200_txt = f"200MA <b>{ma200_v:,.0f}원</b> · <span style='color:{tcolor};'>{ma200_pct:+.1f}%</span>" if ma200_v else "200MA: 데이터 부족"
+                        ns_txt = f"⬇{ns['level']} <b>{ns['price']:,.0f}원</b> (-{ns['gap_pct']:.1f}%)" if ns else "⬇ 지지 없음"
+                        nr_txt = f"⬆{nr['level']} <b>{nr['price']:,.0f}원</b> (+{nr['gap_pct']:.1f}%)" if nr else "⬆ 저항 없음"
+                        vmap = {v['style']: v for v in interp.get('verdicts', [])}
+                        bcolor = {'🔴':'#ef4444','🟡':'#f59e0b','🟢':'#22c55e','⚪':'#888'}
+                        badges_html = []
+                        for sk in ('📦 분할매수 (중장기)', '🤝 보유중', '⚡ 단기 트레이딩'):
+                            v = vmap.get(sk)
+                            if v:
+                                emoji = v['badge'][0]
+                                c = bcolor.get(emoji, '#888')
+                                label = v['style'].split(' ', 1)[1] if ' ' in v['style'] else v['style']
+                                badges_html.append(
+                                    f"<span style='background:#0d1421; padding:3px 10px; border-radius:6px; "
+                                    f"border-left:3px solid {c}; font-size:0.85rem; color:#aaa;'>"
+                                    f"<b style='color:{c};'>{v['badge']}</b> {label}</span>"
+                                )
+                        st.markdown(f"""
+                        <div style='background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%); padding:0.85rem 1.1rem;
+                                    border-radius:12px; border-left:5px solid {tcolor}; margin-top:0.4rem;'>
+                            <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem;'>
+                                <div><span style='color:#888; font-size:0.82rem;'>현재가</span>
+                                     <span style='color:#fff; font-size:1.2rem; font-weight:700; margin-left:0.3rem;'>{cur:,.0f}원</span></div>
+                                <div style='color:{tcolor}; font-weight:700; font-size:0.95rem;'>📊 {trend}</div>
+                                <div style='color:#ddd; font-size:0.88rem;'>{ma200_txt}</div>
+                            </div>
+                            <div style='margin-top:0.5rem; color:#bbb; font-size:0.85rem;'>
+                                위치: <b style='color:#fff;'>{pos}</b> · {ns_txt} · {nr_txt}
+                            </div>
+                            <div style='margin-top:0.6rem; display:flex; gap:0.4rem; flex-wrap:wrap;'>
+                                {''.join(badges_html)}
+                            </div>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        if len(close_fib) >= 200:
+                            conf = detect_ma200_fibonacci_confluence(close_fib, lookback=120, tolerance_pct=2.0)
+                            if conf and conf.get('matched'):
+                                best = conf['matched'][0]
+                                zone = conf.get('price_zone', '중립')
+                                zc = {'지지권':'#22c55e','저항권':'#ef4444','근접':'#f59e0b','중립':'#888'}.get(zone,'#888')
+                                st.markdown(
+                                    f"<div style='margin-top:0.4rem; padding:0.5rem 1rem; background:#0d1421; "
+                                    f"border-radius:8px; border-left:4px solid {zc};'>"
+                                    f"<b style='color:{zc};'>⚡ 200MA·피보 {best['level']} confluence</b> "
+                                    f"<span style='color:#aaa;'>({zone}) · 200MA {conf['ma200']:,.0f}원 · "
+                                    f"레벨가 {best['price']:,.0f}원 · 차이 {best['gap_pct']:.2f}%</span></div>",
+                                    unsafe_allow_html=True
+                                )
+            except Exception:
+                pass
 
             # ========== 매매 신호 세분화 표시 (새로 추가) ==========
             st.markdown("---")

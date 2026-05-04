@@ -856,6 +856,17 @@ def _render_chart_strategy_simulation():
                         line=dict(color='#E91E63', width=1)
                     ))
 
+                # 200일선 (장기 추세 기준 — 진홍·두껍게)
+                if len(price_data) >= 200:
+                    ma200 = price_data['close'].rolling(200).mean()
+                    fig.add_trace(go.Scatter(
+                        x=price_data['date'] if 'date' in price_data.columns else price_data.index,
+                        y=ma200,
+                        mode='lines',
+                        name='MA200',
+                        line=dict(color='#DC143C', width=2.5)
+                    ))
+
                 # 스윙 포인트 (저점/고점 마커)
                 if len(price_data) >= 10:
                     swing_order = 3 if len(price_data) < 100 else 5

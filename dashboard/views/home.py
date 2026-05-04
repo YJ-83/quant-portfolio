@@ -50,7 +50,7 @@ MA_OPTIONS = {
     'MA20': (20, '#FFE66D', '20일선'),
     'MA60': (60, '#95E1D3', '60일선'),
     'MA120': (120, '#8B00FF', '120일선'),  # 보라색
-    'MA200': (200, '#1A1A1A', '200일선'),  # 검정색
+    'MA200': (200, '#DC143C', '200일선'),  # 진홍 (장기추세 — 다크 배경에서도 선명)
 }
 
 # 차트 타입 옵션
@@ -1508,7 +1508,8 @@ def _render_stock_detail_section(api, code: str):
         for i, (ma_key, (_, _, label)) in enumerate(MA_OPTIONS.items()):
             with ma_cols[i]:
                 # 5일, 20일, 60일, 120일선 기본 선택
-                if st.checkbox(label, value=(ma_key in ['MA5', 'MA20', 'MA60', 'MA120']), key=f"{ma_key}_{code}"):
+                # 기본 선택: 5/20/60/120/200 (200일선은 장기추세 기준 — 항상 기본 표시)
+                if st.checkbox(label, value=(ma_key in ['MA5', 'MA20', 'MA60', 'MA120', 'MA200']), key=f"{ma_key}_{code}"):
                     selected_mas.append(ma_key)
 
     with col2:
@@ -1627,15 +1628,16 @@ def _render_stock_detail_section(api, code: str):
                 fillcolor='rgba(102, 126, 234, 0.3)'
             ), row=1, col=1)
 
-        # 이동평균선
+        # 이동평균선 (200일선은 두껍게 — 장기추세 기준)
         for ma_key in selected_mas:
             period_val, color, label = MA_OPTIONS[ma_key]
             if len(chart_data) >= period_val:
                 ma_values = chart_data['close'].rolling(window=period_val).mean()
+                line_w = 2.5 if period_val == 200 else 1.5
                 fig.add_trace(go.Scatter(
                     x=chart_data[time_col], y=ma_values,
                     mode='lines', name=label,
-                    line=dict(color=color, width=1.5)
+                    line=dict(color=color, width=line_w)
                 ), row=1, col=1)
 
         # 볼린저 밴드

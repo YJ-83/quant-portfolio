@@ -1003,15 +1003,21 @@ def _render_selected_stock_chart(code: str):
             whiskerwidth=0.8
         ), row=1, col=1)
 
-        # 이동평균선 (5, 20, 60, 120일)
-        ma_configs = [(5, '#FF6B6B', '5일'), (20, '#FFE66D', '20일'), (60, '#95E1D3', '60일'), (120, '#8B00FF', '120일')]
-        for period_val, color, label in ma_configs:
+        # 이동평균선 (5, 20, 60, 120, 200일 — 200일선은 진홍·두껍게 강조)
+        ma_configs = [
+            (5, '#FF6B6B', '5일', 1.5),
+            (20, '#FFE66D', '20일', 1.5),
+            (60, '#95E1D3', '60일', 1.5),
+            (120, '#8B00FF', '120일', 1.5),
+            (200, '#DC143C', '200일', 2.5),
+        ]
+        for period_val, color, label, width_val in ma_configs:
             if len(chart_data) >= period_val:
                 ma = chart_data['close'].rolling(window=period_val).mean()
                 fig.add_trace(go.Scatter(
                     x=chart_data['date'], y=ma,
                     mode='lines', name=label,
-                    line=dict(color=color, width=1.5)
+                    line=dict(color=color, width=width_val)
                 ), row=1, col=1)
 
         # 볼린저 밴드

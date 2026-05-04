@@ -281,11 +281,11 @@ def _render_stock_chart(api, code: str, name: str, key_prefix: str):
     # 박스권은 항상 표시 (체크박스 제거)
     show_box_range = True
 
-    # 데이터 로드 (세션 캐싱)
+    # 데이터 로드 (세션 캐싱) — MA200 계산을 위해 최소 300영업일(약 420일치)
     if chart_type == "일봉":
-        # 일봉 데이터 캐싱
+        # 일봉 데이터 캐싱 (200일선 + 피보나치 분석용으로 최소 1년치 확보)
         if daily_data_key not in st.session_state or st.session_state[daily_data_key] is None:
-            st.session_state[daily_data_key] = _get_stock_data(api, code, days=180)
+            st.session_state[daily_data_key] = _get_stock_data(api, code, days=420)
         data = st.session_state[daily_data_key]
         period_label = "일봉"
     else:
@@ -323,6 +323,87 @@ def _render_stock_chart(api, code: str, name: str, key_prefix: str):
             show_box_range=show_box_range,
             ma_periods=[5, 20, 60, 120, 200]
         )
+
+        # 차트 직하단에 200MA·피보나치 분석 + 매매 판단 미니 패널
+        try:
+            from utils.fibonacci import (
+                fibonacci_retracement_levels,
+                detect_ma200_fibonacci_confluence,
+                interpret_fib_ma200,
+            )
+            close_for_fib = data['close'] if 'close' in data.columns else None
+            if close_for_fib is not None and len(close_for_fib) >= 60:
+                interp = interpret_fib_ma200(close_for_fib, lookback=120)
+                if interp:
+                    cur = interp['current_price']
+                    ma200_v = interp.get('ma200')
+                    ma200_pct = interp.get('ma200_diff_pct')
+                    pos = interp.get('position_label', '?')
+                    ns = interp.get('next_support')
+                    nr = interp.get('next_resistance')
+                    trend = interp.get('trend_label', '?')
+                    if ma200_pct is None:
+                        tcolor = '#888'
+                    elif ma200_pct >= 20: tcolor = '#22c55e'
+                    elif ma200_pct >= 5: tcolor = '#86efac'
+                    elif ma200_pct >= -5: tcolor = '#f59e0b'
+                    else: tcolor = '#ef4444'
+                    ma200_txt = f"200MA <b>{ma200_v:,.0f}원</b> · <span style='color:{tcolor};'>{ma200_pct:+.1f}%</span>" if ma200_v else "200MA: 데이터 부족"
+                    ns_txt = f"⬇{ns['level']} <b>{ns['price']:,.0f}원</b> (-{ns['gap_pct']:.1f}%)" if ns else "⬇ 지지 없음"
+                    nr_txt = f"⬆{nr['level']} <b>{nr['price']:,.0f}원</b> (+{nr['gap_pct']:.1f}%)" if nr else "⬆ 저항 없음"
+
+                    # 압축 판단 배지 (3개)
+                    vmap = {v['style']: v for v in interp.get('verdicts', [])}
+                    bcolor = {'🔴':'#ef4444','🟡':'#f59e0b','🟢':'#22c55e','⚪':'#888'}
+                    badges_html = []
+                    for sk in ('📦 분할매수 (중장기)', '🤝 보유중', '⚡ 단기 트레이딩'):
+                        v = vmap.get(sk)
+                        if v:
+                            emoji = v['badge'][0]
+                            c = bcolor.get(emoji, '#888')
+                            label = v['style'].split(' ', 1)[1] if ' ' in v['style'] else v['style']
+                            badges_html.append(
+                                f"<span style='background:#0d1421; padding:3px 10px; border-radius:6px; "
+                                f"border-left:3px solid {c}; font-size:0.85rem; color:#aaa;'>"
+                                f"<b style='color:{c};'>{v['badge']}</b> {label}</span>"
+                            )
+
+                    st.markdown(f"""
+                    <div style='background:linear-gradient(135deg,#0f172a 0%,#1e293b 100%); padding:0.85rem 1.1rem;
+                                border-radius:12px; border-left:5px solid {tcolor}; margin-top:0.4rem;'>
+                        <div style='display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:0.6rem;'>
+                            <div><span style='color:#888; font-size:0.82rem;'>현재가</span>
+                                 <span style='color:#fff; font-size:1.2rem; font-weight:700; margin-left:0.3rem;'>{cur:,.0f}원</span></div>
+                            <div style='color:{tcolor}; font-weight:700; font-size:0.95rem;'>📊 {trend}</div>
+                            <div style='color:#ddd; font-size:0.88rem;'>{ma200_txt}</div>
+                        </div>
+                        <div style='margin-top:0.5rem; color:#bbb; font-size:0.85rem;'>
+                            위치: <b style='color:#fff;'>{pos}</b> · {ns_txt} · {nr_txt}
+                        </div>
+                        <div style='margin-top:0.6rem; display:flex; gap:0.4rem; flex-wrap:wrap;'>
+                            {''.join(badges_html)}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+
+                    # confluence 강조 (있으면)
+                    if len(close_for_fib) >= 200:
+                        conf = detect_ma200_fibonacci_confluence(close_for_fib, lookback=120, tolerance_pct=2.0)
+                        if conf and conf.get('matched'):
+                            best = conf['matched'][0]
+                            zone = conf.get('price_zone', '중립')
+                            zc = {'지지권':'#22c55e','저항권':'#ef4444','근접':'#f59e0b','중립':'#888'}.get(zone,'#888')
+                            st.markdown(
+                                f"<div style='margin-top:0.4rem; padding:0.5rem 1rem; background:#0d1421; "
+                                f"border-radius:8px; border-left:4px solid {zc};'>"
+                                f"<b style='color:{zc};'>⚡ 200MA·피보 {best['level']} confluence</b> "
+                                f"<span style='color:#aaa;'>({zone}) · 200MA {conf['ma200']:,.0f}원 · "
+                                f"레벨가 {best['price']:,.0f}원 · 차이 {best['gap_pct']:.2f}%</span></div>",
+                                unsafe_allow_html=True
+                            )
+        except Exception as _e:
+            # 분석 실패해도 차트는 정상 표시
+            pass
     except Exception as e:
         import traceback
         st.error(f"차트 렌더링 오류: {e}")

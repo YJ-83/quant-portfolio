@@ -551,6 +551,15 @@ def _render_manual_trading(api):
                         row=1, col=1
                     )
 
+                # 200일선 (장기추세 기준 — 진홍·두껍게)
+                if len(price_data) >= 200:
+                    ma200 = price_data['close'].rolling(window=200).mean()
+                    fig.add_trace(
+                        go.Scatter(x=price_data['date'], y=ma200, name='MA200',
+                                  line=dict(color='#DC143C', width=2.5)),
+                        row=1, col=1
+                    )
+
                 # 스윙 포인트 (저점/고점 마커)
                 if len(price_data) >= 10:
                     swing_order = 3 if len(price_data) < 100 else 5

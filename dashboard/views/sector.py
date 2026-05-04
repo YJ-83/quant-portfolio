@@ -639,9 +639,14 @@ def _render_stock_chart(api, code: str, name: str):
         row=1, col=1
     )
 
-    # 이동평균선
-    for ma_period, color, dash in [(5, '#FF6B6B', 'solid'), (20, '#4ECDC4', 'solid'),
-                                    (60, '#45B7D1', 'dot'), (120, '#96CEB4', 'dot')]:
+    # 이동평균선 (5/20/60/120/200 — 200일선은 진홍·두껍게)
+    for ma_period, color, dash, width_val in [
+        (5, '#FF6B6B', 'solid', 1),
+        (20, '#4ECDC4', 'solid', 1),
+        (60, '#45B7D1', 'dot', 1),
+        (120, '#96CEB4', 'dot', 1),
+        (200, '#DC143C', 'solid', 2.5),
+    ]:
         if len(chart_data) >= ma_period:
             ma = chart_data['close'].rolling(ma_period).mean()
             fig.add_trace(
@@ -650,7 +655,7 @@ def _render_stock_chart(api, code: str, name: str):
                     y=ma,
                     mode='lines',
                     name=f'MA{ma_period}',
-                    line=dict(color=color, width=1, dash=dash)
+                    line=dict(color=color, width=width_val, dash=dash)
                 ),
                 row=1, col=1
             )
