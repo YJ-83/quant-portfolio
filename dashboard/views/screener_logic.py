@@ -1847,7 +1847,7 @@ def _display_stock_chart(code: str, name: str, d1d2_info: dict = None):
             show_swing_points=True,
             show_box_range=True,
             d1d2_info=d1d2_info,
-            ma_periods=[5, 20]
+            ma_periods=[5, 20, 60, 120, 200]
         )
     except Exception as e:
         st.error(f"차트 로드 오류: {e}")
@@ -2011,7 +2011,7 @@ def _display_stock_chart_with_resistance(code: str, name: str, phb_info: dict = 
             show_swing_points=True,
             show_box_range=True,
             d1d2_info=d1d2_info if d1d2_info else None,
-            ma_periods=[5, 20]
+            ma_periods=[5, 20, 60, 120, 200]
         )
     except Exception as e:
         st.error(f"차트 로드 오류: {e}")
