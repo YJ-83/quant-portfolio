@@ -282,9 +282,9 @@ def _run_chart_scan(api, strategies, market, kospi_count, kosdaq_count, **kwargs
     progress = st.progress(0)
     status = st.empty()
 
-    # 일봉 데이터 기간 설정 (120일)
+    # 일봉 데이터 기간 (MA200·피보나치용으로 420일 이상 확보)
     end_date = datetime.now().strftime("%Y%m%d")
-    start_date = (datetime.now() - timedelta(days=150)).strftime("%Y%m%d")
+    start_date = (datetime.now() - timedelta(days=420)).strftime("%Y%m%d")
 
     # 실시간 모드 안내
     if realtime_mode:

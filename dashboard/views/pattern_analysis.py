@@ -238,10 +238,10 @@ def _analyze_single_stock(code: str, name: str) -> Dict:
     }
 
     try:
-        # 주가 데이터 가져오기
+        # 주가 데이터 가져오기 (MA200·피보나치 분석용으로 최소 420일)
         import FinanceDataReader as fdr
         end_date = datetime.now()
-        start_date = end_date - timedelta(days=180)
+        start_date = end_date - timedelta(days=420)
 
         df = fdr.DataReader(code, start_date.strftime('%Y-%m-%d'), end_date.strftime('%Y-%m-%d'))
 

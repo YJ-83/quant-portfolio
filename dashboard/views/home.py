@@ -248,10 +248,10 @@ def _get_stock_info_cached(_api, code: str) -> dict:
 
 @st.cache_data(ttl=60, show_spinner=False)
 def _get_chart_technical_analysis(_api, code: str) -> dict:
-    """차트 기술적 분석 데이터 조회"""
+    """차트 기술적 분석 데이터 조회 (MA200·피보나치 분석용 420일)"""
     try:
         end = datetime.now().strftime("%Y%m%d")
-        start = (datetime.now() - timedelta(days=120)).strftime("%Y%m%d")
+        start = (datetime.now() - timedelta(days=420)).strftime("%Y%m%d")
 
         df = _api.get_daily_price(code, start, end)
         if df is None or len(df) < 60:
