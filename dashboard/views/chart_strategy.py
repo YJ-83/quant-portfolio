@@ -1414,15 +1414,24 @@ def _find_ma200_breakout_stocks(
     volume_multiplier: float = 2.0,
     days_window: int = 5,
     require_above_today: bool = True,
+    min_breakout_close_pct: float = 1.0,
+    require_bullish_candle: bool = True,
 ) -> list:
-    """200일선을 상향 돌파한 종목 + 거래량 급증 동반 검색.
+    """200일선을 위로 강하게 상향 돌파한 종목 + 거래량 급증 동반 검색.
 
-    조건:
-    - MA200 산출 가능 (최소 200영업일 이상 데이터)
-    - 최근 `days_window`일 안에 종가가 MA200을 상향 돌파 (전일 종가 ≤ MA200, 당일 종가 > MA200)
-    - require_above_today=True: 현재가가 여전히 MA200 위
-    - 돌파일 거래량 ≥ 직전 20일 평균 × volume_multiplier (기본 2배)
-    - 돌파 후 +30% 미만(과열 종목 제외)
+    엄격한 "강한 상부 돌파" 조건 (하향 돌파 절대 미포함):
+    1. 최소 210영업일 데이터 확보 → MA200 산출 가능
+    2. 최근 days_window일 안에 다음을 모두 만족하는 돌파일 존재:
+       (a) 전일 종가 ≤ 전일 MA200    (= 직전엔 200MA 아래/근접)
+       (b) 당일 종가 >  당일 MA200    (= 당일 200MA 위로 올라옴)
+       (c) 당일 종가 ≥ 당일 MA200 × (1 + min_breakout_close_pct%)
+                                      (= "강한" 돌파 — 단순 close 같음 정도가 아님)
+       (d) require_bullish_candle=True: 당일 종가 > 당일 시가 (양봉)
+       (e) 당일 거래량 ≥ 직전 20일 평균 × volume_multiplier
+    3. require_above_today=True (기본): 현재가 > 현재 200MA (돌파 후 유지)
+    4. 돌파 후 +30% 초과 종목 제외 (가짜 돌파/추격매수 방지)
+    5. 추가 확인: MA200 자체가 우상향 추세 또는 수평 (현재 MA200 ≥ 60일 전 MA200 × 0.97)
+       → 하락 추세 200MA를 잠깐 찔러본 가짜 돌파는 자동 제외
     """
     results = []
     stocks = _get_market_stocks(market)
@@ -1447,49 +1456,92 @@ def _find_ma200_breakout_stocks(
                 continue
 
             close = data['close']
+            open_p = data['open'] if 'open' in data.columns else None
             volume = data['volume']
             ma200 = close.rolling(200).mean()
             vol_avg20 = volume.rolling(20).mean()
 
-            # 최근 N일 안에 돌파한 인덱스 찾기 (전일 종가 ≤ MA200, 당일 종가 > MA200)
+            # ── 조건 (5) MA200 자체가 하락 추세 아님: 60일 전 MA200 대비 ≥ -3%
+            cur_ma_full = ma200.iloc[-1]
+            if pd.isna(cur_ma_full):
+                continue
+            cur_ma200 = float(cur_ma_full)
+            ref_ma_full = ma200.iloc[-60] if len(ma200) >= 60 else None
+            if ref_ma_full is None or pd.isna(ref_ma_full):
+                continue
+            if float(ref_ma_full) > 0 and (cur_ma200 - float(ref_ma_full)) / float(ref_ma_full) < -0.03:
+                # MA200 자체가 명백한 하락 추세 → "강한 상부 돌파" 자격 없음
+                continue
+
+            # ── 조건 (2) 강한 상부 돌파일 찾기
+            min_break_factor = 1.0 + (min_breakout_close_pct / 100.0)
             breakout_idx = None
             breakout_pos = -1
             scan_range = min(days_window, len(close) - 1)
             for back in range(0, scan_range):
-                p = -1 - back  # -1=가장 최근
+                p = -1 - back
                 if p - 1 < -len(close):
                     break
                 prev_close = float(close.iloc[p - 1])
                 cur_close = float(close.iloc[p])
-                prev_ma = float(ma200.iloc[p - 1]) if not pd.isna(ma200.iloc[p - 1]) else None
-                cur_ma = float(ma200.iloc[p]) if not pd.isna(ma200.iloc[p]) else None
-                if prev_ma is None or cur_ma is None:
+                prev_ma = ma200.iloc[p - 1]
+                cur_ma = ma200.iloc[p]
+                if pd.isna(prev_ma) or pd.isna(cur_ma):
                     continue
-                if prev_close <= prev_ma and cur_close > cur_ma:
-                    breakout_idx = p
-                    breakout_pos = back
-                    break
+                prev_ma = float(prev_ma)
+                cur_ma = float(cur_ma)
+                # (a)+(b) 진짜 상향 돌파
+                if not (prev_close <= prev_ma and cur_close > cur_ma):
+                    continue
+                # (c) "강한" 돌파 — 종가가 MA200보다 min_breakout_close_pct% 이상 위
+                if cur_close < cur_ma * min_break_factor:
+                    continue
+                # (d) 양봉 (종가 > 시가)
+                if require_bullish_candle and open_p is not None:
+                    try:
+                        if float(open_p.iloc[p]) >= cur_close:
+                            continue
+                    except (KeyError, ValueError):
+                        pass
+                # (e) 거래량 배수
+                bk_vol = float(volume.iloc[p])
+                bk_vol_avg = vol_avg20.iloc[p]
+                if pd.isna(bk_vol_avg) or float(bk_vol_avg) <= 0:
+                    continue
+                if bk_vol / float(bk_vol_avg) < volume_multiplier:
+                    continue
+                # 모든 조건 통과
+                breakout_idx = p
+                breakout_pos = back
+                break
 
             if breakout_idx is None:
                 continue
 
-            # 돌파일 거래량 vs 20일 평균
+            # 돌파일 메트릭 (재계산)
+            breakout_close = float(close.iloc[breakout_idx])
+            breakout_ma = float(ma200.iloc[breakout_idx])
             breakout_vol = float(volume.iloc[breakout_idx])
-            breakout_vol_avg = float(vol_avg20.iloc[breakout_idx]) if not pd.isna(vol_avg20.iloc[breakout_idx]) else 0
-            if breakout_vol_avg <= 0:
-                continue
-            vol_ratio = breakout_vol / breakout_vol_avg
-            if vol_ratio < volume_multiplier:
-                continue
+            breakout_vol_avg = float(vol_avg20.iloc[breakout_idx])
+            vol_ratio = breakout_vol / breakout_vol_avg if breakout_vol_avg else 0
+            breakout_pct_above_ma = (breakout_close - breakout_ma) / breakout_ma * 100 if breakout_ma else 0
+
+            # 양봉 정보
+            is_bullish = True
+            try:
+                if open_p is not None:
+                    is_bullish = float(open_p.iloc[breakout_idx]) < breakout_close
+            except Exception:
+                pass
 
             cur_price = float(close.iloc[-1])
-            cur_ma200 = float(ma200.iloc[-1])
+
+            # 조건 (3) 현재가 > 현재 200MA
             if require_above_today and cur_price <= cur_ma200:
                 continue
 
-            # 돌파 후 과열 종목 제외 (+30% 초과)
-            breakout_price = float(close.iloc[breakout_idx])
-            since_breakout_pct = (cur_price - breakout_price) / breakout_price * 100 if breakout_price else 0
+            # 조건 (4) 돌파 후 +30% 초과 제외 (과열)
+            since_breakout_pct = (cur_price - breakout_close) / breakout_close * 100 if breakout_close else 0
             if since_breakout_pct > 30:
                 continue
 
@@ -1498,20 +1550,21 @@ def _find_ma200_breakout_stocks(
             change_rate = (cur_price - prev) / prev * 100 if prev else 0
 
             # 매매 전략 (참고치)
-            entry = cur_ma200 * 1.005  # 200MA 위 0.5% 위 진입
-            stop = cur_ma200 * 0.97    # 200MA -3% 이탈 손절
-            target = cur_price * 1.15  # 현재가 +15% 목표
+            entry = cur_ma200 * 1.005   # 200MA 위 0.5% (얕은 눌림 매수)
+            stop = cur_ma200 * 0.97     # 200MA -3% 이탈 손절
+            target = cur_price * 1.15   # 현재가 +15% 목표
 
-            # 돌파 D+N 표시
             d_label = "D+0(오늘)" if breakout_pos == 0 else f"D+{breakout_pos}"
+            bullish_emoji = "🟢양봉" if is_bullish else "🔴음봉"
 
             results.append({
                 'code': code,
                 'name': name,
-                'signal': f'200MA 돌파 ({d_label})',
+                'signal': f'200MA 상부 강돌파 ({d_label})',
                 'reason': (
-                    f"200MA {cur_ma200:,.0f}원 상향 돌파, "
-                    f"거래량 {vol_ratio:.1f}배 급증, "
+                    f"{bullish_emoji} 종가 {breakout_close:,.0f}원 = 200MA {breakout_ma:,.0f}원 "
+                    f"+{breakout_pct_above_ma:.2f}% · "
+                    f"거래량 {vol_ratio:.1f}배 급증 · "
                     f"돌파 후 {since_breakout_pct:+.1f}%"
                 ),
                 'change_rate': change_rate,
@@ -1523,14 +1576,16 @@ def _find_ma200_breakout_stocks(
                 'vol_ratio': vol_ratio,
                 'days_since_breakout': breakout_pos,
                 'since_breakout_pct': since_breakout_pct,
+                'breakout_pct_above_ma': breakout_pct_above_ma,
+                'is_bullish': is_bullish,
             })
         except Exception:
             continue
 
     progress.empty()
     status.empty()
-    # 거래량 비율 큰 순 → 돌파 후 상승률 작은 순 정렬 (신선한 돌파 우선)
-    results.sort(key=lambda r: (-r['vol_ratio'], r.get('since_breakout_pct', 0)))
+    # 거래량 배수 큰 순 → 돌파 강도(MA200 대비 %) 큰 순 정렬
+    results.sort(key=lambda r: (-r['vol_ratio'], -r.get('breakout_pct_above_ma', 0)))
     return results
 
 
@@ -2168,28 +2223,34 @@ def _find_directional_change_stocks(api, market: str, stock_count=100) -> list:
 
 
 def _render_ma200_breakout_section(api):
-    """200일선 돌파 + 거래량 급증 종목 검색 섹션."""
-    st.markdown("### 🚀 200일선 돌파 + 거래량 급증 검색")
+    """200일선을 위로 강하게 돌파한 종목 + 거래량 급증 검색 섹션.
+
+    엄격하게 '상부 강돌파'만 검색 (하향 돌파는 절대 미포함).
+    """
+    st.markdown("### 🚀 200일선 상부 강돌파 + 거래량 급증 검색")
     st.info(
-        "장기 추세 전환의 가장 명확한 신호 — 200일선 위로 종가가 처음 올라선 종목을 "
-        "거래량 동반과 함께 찾습니다. 돌파 신선도(최근 N일 내) · 거래량 배수 · 과열 여부를 "
-        "함께 확인해 가짜 돌파를 걸러냅니다."
+        "**위로** 강하게 돌파한 종목만 검색합니다 (하향 돌파는 절대 포함되지 않음). "
+        "전일 종가 ≤ MA200 → 당일 종가 > MA200 + α% + 양봉 + 거래량 N배 동반, "
+        "그리고 200MA 자체가 우상향/수평 추세일 때만 통과."
     )
 
     col1, col2 = st.columns([3, 2])
     with col1:
         st.success(
-            "#### 📈 왜 200일선 돌파인가?\n"
-            "- **200일선은 장기 추세의 절대 기준선** (강세장 vs 약세장 구분점)\n"
-            "- 박스권 매집 종목이 200MA를 거래량 동반 돌파하면 추세 전환 신호\n"
-            "- 골든크로스(50/200)보다 1~3주 빠르게 포착 가능"
+            "#### 📈 강한 상부 돌파 5대 조건\n"
+            "1. 전일 종가 ≤ MA200 ⟶ 당일 종가 > MA200 (실제 상향 통과)\n"
+            "2. 당일 종가가 MA200 + **α%** 이상 (단순 같음이 아닌 '강한' 돌파)\n"
+            "3. 당일 캔들 **양봉** (종가 > 시가)\n"
+            "4. 당일 거래량 ≥ 20일 평균 × **N배**\n"
+            "5. 200MA 자체 추세가 우상향 또는 수평 (하락 추세 200MA를 잠깐 찌른 가짜 돌파 자동 제외)"
         )
     with col2:
         st.warning(
-            "#### ⚠️ 가짜 돌파 주의\n"
-            "- 거래량 미동반 돌파는 다시 되돌아오는 경우 많음\n"
-            "- 돌파 후 +30% 이상 급등 종목은 자동 제외 (과열)\n"
-            "- 돌파 후 200MA 재이탈 시 즉시 손절"
+            "#### ⚠️ 가짜 돌파 방어\n"
+            "- 거래량 미동반 돌파 ⟶ 제외\n"
+            "- 음봉 돌파 ⟶ 제외 (옵션)\n"
+            "- 200MA -3% 이상 하락 추세 ⟶ 제외\n"
+            "- 돌파 후 +30% 초과 과열 종목 ⟶ 제외 (추격매수 방지)"
         )
 
     st.markdown("---")
@@ -2218,10 +2279,10 @@ def _render_ma200_breakout_section(api):
             value=5,
             step=1,
             key="ma200bo_window",
-            help="N일 이내에 200일선을 돌파한 종목만 검색. 1=오늘만, 5=일주일 내",
+            help="N일 이내에 200일선을 위로 돌파한 종목만 검색. 1=오늘만, 5=일주일 내",
         )
 
-    c4, c5 = st.columns([2, 3])
+    c4, c5 = st.columns([2, 2])
     with c4:
         volume_multiplier = st.select_slider(
             "거래량 배수 (돌파일 vs 20일 평균)",
@@ -2230,15 +2291,32 @@ def _render_ma200_breakout_section(api):
             key="ma200bo_vol",
         )
     with c5:
+        min_breakout_close_pct = st.select_slider(
+            "최소 돌파 강도 (종가가 MA200 위로 +α%)",
+            options=[0.5, 1.0, 1.5, 2.0, 3.0, 5.0],
+            value=1.0,
+            key="ma200bo_strength",
+            help="단순히 종가 = MA200 이 아니라, 종가가 MA200보다 α% 이상 위에 있어야 '강한' 돌파로 인정",
+        )
+
+    c6, c7 = st.columns([2, 2])
+    with c6:
         require_above = st.checkbox(
             "✅ 현재가가 여전히 200일선 위 (필수)",
             value=True,
             key="ma200bo_above",
             help="끄면 돌파했다가 다시 200MA 아래로 떨어진 종목도 포함",
         )
+    with c7:
+        require_bullish = st.checkbox(
+            "🟢 돌파일 양봉 필수 (종가 > 시가)",
+            value=True,
+            key="ma200bo_bullish",
+            help="음봉인데 종가만 MA200 위인 약한 돌파를 제외",
+        )
 
-    if st.button("🚀 200일선 돌파 종목 검색", key="ma200bo_search", type="primary"):
-        with st.spinner(f"전 종목 200MA 돌파 + 거래량 {volume_multiplier}배 검색 중..."):
+    if st.button("🚀 200일선 상부 강돌파 종목 검색", key="ma200bo_search", type="primary"):
+        with st.spinner(f"전 종목 200MA 상부 돌파 + 거래량 {volume_multiplier}배 + 강도 {min_breakout_close_pct}% 이상 검색 중..."):
             results = _find_ma200_breakout_stocks(
                 api,
                 market,
@@ -2246,6 +2324,8 @@ def _render_ma200_breakout_section(api):
                 volume_multiplier=float(volume_multiplier),
                 days_window=int(days_window),
                 require_above_today=bool(require_above),
+                min_breakout_close_pct=float(min_breakout_close_pct),
+                require_bullish_candle=bool(require_bullish),
             )
 
         if results:
