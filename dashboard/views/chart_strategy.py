@@ -107,6 +107,7 @@ def render_chart_strategy():
     # 탭 생성 (스크리너 + 차트매매전략 통합)
     tabs = st.tabs([
         "🏆 종합 추천",
+        "🚀 200일선 돌파",
         "📈 추세선 분석",
         "🎯 조화 패턴",
         "👤 머리어깨",
@@ -125,39 +126,42 @@ def render_chart_strategy():
         _render_comprehensive_recommendation_section(api)
 
     with tabs[1]:
-        _render_trendline_section(api)
+        _render_ma200_breakout_section(api)
 
     with tabs[2]:
-        _render_harmonic_section(api)
+        _render_trendline_section(api)
 
     with tabs[3]:
-        _render_head_shoulders_section(api)
+        _render_harmonic_section(api)
 
     with tabs[4]:
-        _render_flags_pennants_section(api)
+        _render_head_shoulders_section(api)
 
     with tabs[5]:
-        _render_fibonacci_section(api)
+        _render_flags_pennants_section(api)
 
     with tabs[6]:
-        _render_directional_change_section(api)
+        _render_fibonacci_section(api)
 
     with tabs[7]:
-        _render_support_resistance_section(api)
+        _render_directional_change_section(api)
 
     with tabs[8]:
-        _render_strategy_validation_section(api)
+        _render_support_resistance_section(api)
 
     with tabs[9]:
-        _render_condition_screener(api)
+        _render_strategy_validation_section(api)
 
     with tabs[10]:
-        _render_signal_scanner(api)
+        _render_condition_screener(api)
 
     with tabs[11]:
-        _render_advanced_analysis(api)
+        _render_signal_scanner(api)
 
     with tabs[12]:
+        _render_advanced_analysis(api)
+
+    with tabs[13]:
         _render_chart_strategy_section(api)
 
 
@@ -1403,6 +1407,133 @@ def _find_fibonacci_stocks(api, market: str, stock_count=100) -> list:
     return results
 
 
+def _find_ma200_breakout_stocks(
+    api,
+    market: str,
+    stock_count=100,
+    volume_multiplier: float = 2.0,
+    days_window: int = 5,
+    require_above_today: bool = True,
+) -> list:
+    """200일선을 상향 돌파한 종목 + 거래량 급증 동반 검색.
+
+    조건:
+    - MA200 산출 가능 (최소 200영업일 이상 데이터)
+    - 최근 `days_window`일 안에 종가가 MA200을 상향 돌파 (전일 종가 ≤ MA200, 당일 종가 > MA200)
+    - require_above_today=True: 현재가가 여전히 MA200 위
+    - 돌파일 거래량 ≥ 직전 20일 평균 × volume_multiplier (기본 2배)
+    - 돌파 후 +30% 미만(과열 종목 제외)
+    """
+    results = []
+    stocks = _get_market_stocks(market)
+
+    if stock_count == "전체":
+        search_stocks = stocks
+    else:
+        search_stocks = stocks[:int(stock_count)]
+
+    progress = st.progress(0)
+    status = st.empty()
+    total = len(search_stocks)
+
+    for i, (code, name) in enumerate(search_stocks):
+        if i % 10 == 0:
+            progress.progress((i + 1) / total)
+            status.text(f"스캔 중: {name} ({code}) — {i+1}/{total}")
+        try:
+            # MA200 계산을 위해 최소 250영업일치 확보 (캐시: _get_stock_data days=420)
+            data = _get_stock_data(api, code, days=420)
+            if data is None or len(data) < 210:
+                continue
+
+            close = data['close']
+            volume = data['volume']
+            ma200 = close.rolling(200).mean()
+            vol_avg20 = volume.rolling(20).mean()
+
+            # 최근 N일 안에 돌파한 인덱스 찾기 (전일 종가 ≤ MA200, 당일 종가 > MA200)
+            breakout_idx = None
+            breakout_pos = -1
+            scan_range = min(days_window, len(close) - 1)
+            for back in range(0, scan_range):
+                p = -1 - back  # -1=가장 최근
+                if p - 1 < -len(close):
+                    break
+                prev_close = float(close.iloc[p - 1])
+                cur_close = float(close.iloc[p])
+                prev_ma = float(ma200.iloc[p - 1]) if not pd.isna(ma200.iloc[p - 1]) else None
+                cur_ma = float(ma200.iloc[p]) if not pd.isna(ma200.iloc[p]) else None
+                if prev_ma is None or cur_ma is None:
+                    continue
+                if prev_close <= prev_ma and cur_close > cur_ma:
+                    breakout_idx = p
+                    breakout_pos = back
+                    break
+
+            if breakout_idx is None:
+                continue
+
+            # 돌파일 거래량 vs 20일 평균
+            breakout_vol = float(volume.iloc[breakout_idx])
+            breakout_vol_avg = float(vol_avg20.iloc[breakout_idx]) if not pd.isna(vol_avg20.iloc[breakout_idx]) else 0
+            if breakout_vol_avg <= 0:
+                continue
+            vol_ratio = breakout_vol / breakout_vol_avg
+            if vol_ratio < volume_multiplier:
+                continue
+
+            cur_price = float(close.iloc[-1])
+            cur_ma200 = float(ma200.iloc[-1])
+            if require_above_today and cur_price <= cur_ma200:
+                continue
+
+            # 돌파 후 과열 종목 제외 (+30% 초과)
+            breakout_price = float(close.iloc[breakout_idx])
+            since_breakout_pct = (cur_price - breakout_price) / breakout_price * 100 if breakout_price else 0
+            if since_breakout_pct > 30:
+                continue
+
+            # 전일 대비 등락률
+            prev = float(close.iloc[-2]) if len(close) >= 2 else cur_price
+            change_rate = (cur_price - prev) / prev * 100 if prev else 0
+
+            # 매매 전략 (참고치)
+            entry = cur_ma200 * 1.005  # 200MA 위 0.5% 위 진입
+            stop = cur_ma200 * 0.97    # 200MA -3% 이탈 손절
+            target = cur_price * 1.15  # 현재가 +15% 목표
+
+            # 돌파 D+N 표시
+            d_label = "D+0(오늘)" if breakout_pos == 0 else f"D+{breakout_pos}"
+
+            results.append({
+                'code': code,
+                'name': name,
+                'signal': f'200MA 돌파 ({d_label})',
+                'reason': (
+                    f"200MA {cur_ma200:,.0f}원 상향 돌파, "
+                    f"거래량 {vol_ratio:.1f}배 급증, "
+                    f"돌파 후 {since_breakout_pct:+.1f}%"
+                ),
+                'change_rate': change_rate,
+                'current_price': cur_price,
+                'entry_price': entry,
+                'stop_loss': stop,
+                'target_price': target,
+                'ma200': cur_ma200,
+                'vol_ratio': vol_ratio,
+                'days_since_breakout': breakout_pos,
+                'since_breakout_pct': since_breakout_pct,
+            })
+        except Exception:
+            continue
+
+    progress.empty()
+    status.empty()
+    # 거래량 비율 큰 순 → 돌파 후 상승률 작은 순 정렬 (신선한 돌파 우선)
+    results.sort(key=lambda r: (-r['vol_ratio'], r.get('since_breakout_pct', 0)))
+    return results
+
+
 def _find_volume_breakout_stocks(api, market: str, stock_count=100) -> list:
     """거래량 돌파 종목 찾기 - 진입가, 손절가, 목표가 포함"""
     results = []
@@ -2034,6 +2165,127 @@ def _find_directional_change_stocks(api, market: str, stock_count=100) -> list:
 
     progress.empty()
     return results
+
+
+def _render_ma200_breakout_section(api):
+    """200일선 돌파 + 거래량 급증 종목 검색 섹션."""
+    st.markdown("### 🚀 200일선 돌파 + 거래량 급증 검색")
+    st.info(
+        "장기 추세 전환의 가장 명확한 신호 — 200일선 위로 종가가 처음 올라선 종목을 "
+        "거래량 동반과 함께 찾습니다. 돌파 신선도(최근 N일 내) · 거래량 배수 · 과열 여부를 "
+        "함께 확인해 가짜 돌파를 걸러냅니다."
+    )
+
+    col1, col2 = st.columns([3, 2])
+    with col1:
+        st.success(
+            "#### 📈 왜 200일선 돌파인가?\n"
+            "- **200일선은 장기 추세의 절대 기준선** (강세장 vs 약세장 구분점)\n"
+            "- 박스권 매집 종목이 200MA를 거래량 동반 돌파하면 추세 전환 신호\n"
+            "- 골든크로스(50/200)보다 1~3주 빠르게 포착 가능"
+        )
+    with col2:
+        st.warning(
+            "#### ⚠️ 가짜 돌파 주의\n"
+            "- 거래량 미동반 돌파는 다시 되돌아오는 경우 많음\n"
+            "- 돌파 후 +30% 이상 급등 종목은 자동 제외 (과열)\n"
+            "- 돌파 후 200MA 재이탈 시 즉시 손절"
+        )
+
+    st.markdown("---")
+    st.subheader("🔍 검색 조건")
+
+    c1, c2, c3 = st.columns([2, 2, 2])
+    with c1:
+        market = st.radio(
+            "시장",
+            ["KOSPI", "KOSDAQ", "전체"],
+            horizontal=True,
+            key="ma200bo_market",
+        )
+    with c2:
+        stock_count = st.select_slider(
+            "검색 종목 수",
+            options=[50, 100, 200, 500, "전체"],
+            value=200,
+            key="ma200bo_count",
+        )
+    with c3:
+        days_window = st.slider(
+            "돌파 신선도 (최근 N일 안)",
+            min_value=1,
+            max_value=20,
+            value=5,
+            step=1,
+            key="ma200bo_window",
+            help="N일 이내에 200일선을 돌파한 종목만 검색. 1=오늘만, 5=일주일 내",
+        )
+
+    c4, c5 = st.columns([2, 3])
+    with c4:
+        volume_multiplier = st.select_slider(
+            "거래량 배수 (돌파일 vs 20일 평균)",
+            options=[1.5, 2.0, 2.5, 3.0, 5.0],
+            value=2.0,
+            key="ma200bo_vol",
+        )
+    with c5:
+        require_above = st.checkbox(
+            "✅ 현재가가 여전히 200일선 위 (필수)",
+            value=True,
+            key="ma200bo_above",
+            help="끄면 돌파했다가 다시 200MA 아래로 떨어진 종목도 포함",
+        )
+
+    if st.button("🚀 200일선 돌파 종목 검색", key="ma200bo_search", type="primary"):
+        with st.spinner(f"전 종목 200MA 돌파 + 거래량 {volume_multiplier}배 검색 중..."):
+            results = _find_ma200_breakout_stocks(
+                api,
+                market,
+                stock_count,
+                volume_multiplier=float(volume_multiplier),
+                days_window=int(days_window),
+                require_above_today=bool(require_above),
+            )
+
+        if results:
+            st.success(f"✅ 조건을 충족한 종목 {len(results)}개 발견 (거래량 큰 순)")
+            items_per_page = st.select_slider(
+                "표시 개수",
+                options=[15, 30, 50, 100, "전체"],
+                value=15,
+                key="ma200bo_items_per_page",
+            )
+            display_count = (
+                len(results)
+                if items_per_page == "전체"
+                else min(int(items_per_page), len(results))
+            )
+
+            # 요약 메트릭
+            mcol1, mcol2, mcol3, mcol4 = st.columns(4)
+            with mcol1:
+                st.metric("발견 종목", f"{len(results)}개")
+            with mcol2:
+                avg_vol = sum(r['vol_ratio'] for r in results) / len(results)
+                st.metric("평균 거래량 배수", f"{avg_vol:.1f}배")
+            with mcol3:
+                fresh = sum(1 for r in results if r['days_since_breakout'] == 0)
+                st.metric("오늘 돌파", f"{fresh}개")
+            with mcol4:
+                avg_since = sum(r['since_breakout_pct'] for r in results) / len(results)
+                st.metric("평균 돌파 후 수익", f"{avg_since:+.1f}%")
+
+            st.markdown("---")
+            for i, stock in enumerate(results[:display_count]):
+                _render_stock_card(stock, api=api, key_prefix=f"ma200bo_{i}")
+            if display_count < len(results):
+                st.info(f"… 외 {len(results) - display_count}개 종목 더 있음 (위 슬라이더로 더 보기)")
+        else:
+            st.info(
+                "조건에 맞는 종목이 없습니다. "
+                "거래량 배수를 1.5배로 낮추거나, 돌파 신선도 N일을 늘려보세요."
+            )
 
 
 def _render_trendline_section(api):
